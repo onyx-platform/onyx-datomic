@@ -127,14 +127,14 @@
     :onyx/fn :onyx.plugin.datomic/load-datoms
     :onyx/type :transformer
     :onyx/consumption :concurrent
-    :onyx/batch-size 2
+    :onyx/batch-size 1000
     :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
 
    {:onyx/name :datomic-query
     :onyx/fn :onyx.plugin.datomic-test/my-test-query
     :onyx/type :transformer
     :onyx/consumption :concurrent
-    :onyx/batch-size 2
+    :onyx/batch-size 1000
     :onyx/doc "Queries for names of 5 characters or fewer"}
 
    {:onyx/name :out
@@ -145,7 +145,7 @@
     :hornetq/queue-name out-queue
     :hornetq/host hornetq-host
     :hornetq/port hornetq-port
-    :onyx/batch-size 2
+    :onyx/batch-size 1000
     :onyx/doc "Output source for intermediate query results"}])
 
 (def conn (onyx.api/connect (str "onyx:memory//localhost/" id) coord-opts))

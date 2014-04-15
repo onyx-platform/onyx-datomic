@@ -33,7 +33,8 @@
         partition (:datomic/partition task-map)
         size (:datomic/partition-size task-map)
         partitions (partition-all 2 1 (range 0 t size))]
-    {:results (map (fn [[low high]] {:low low :high (or high t) :t t :partition partition})
+    {:results (map (fn [[low high]]
+                     {:low low :high (or high t) :t t :partition partition})
                    partitions)}))
 
 (defn load-datoms [conn {:keys [low high t partition]}]
