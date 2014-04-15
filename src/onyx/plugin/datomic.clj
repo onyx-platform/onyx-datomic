@@ -3,7 +3,9 @@
             [datomic.api :as d]
             [onyx.peer.pipeline-extensions :as p-ext]))
 
-(defn unroll-datom [db datom]
+(defn unroll-datom
+  "Turns a datom into a vector of :eavt+op."
+  [db datom]
   [(:e datom)
    (d/ident db (:a datom))
    (:v datom)
@@ -12,7 +14,9 @@
 
 (defn datoms-between
   "Returns a reducible collection of datoms created
-  between the start and end dates in a single partition."
+   between the start and end dates in a single partition.
+
+   https://github.com/candera/strangeloop-2013-datomic/blob/master/slides.org#the-code"
   [db partition start end]
   (let [start-e (d/entid-at db partition start)
         end-e (d/entid-at db partition end)]
@@ -24,9 +28,11 @@
    :onyx/direction :input
    :onyx/medium :datomic}
   [{:keys [task-map] :as pipeline}]
-  (let [{:keys [datomic/uri datomic/partition-size datomic/t datomic/partition]} task-map
-        conn (d/connect uri)
-        partitions (partition-all 2 1 (range 0 t partition-size))]
+  (let [conn (d/connect (:datomic/uri task-map))
+        t (:datomic/t task-map)
+        partition (:datomic/partition task-map)
+        size (:datomic/partition-size task-map)
+        partitions (partition-all 2 1 (range 0 t size))]
     {:results (map (fn [[low high]] {:low low :high (or high t) :t t :partition partition})
                    partitions)}))
 
