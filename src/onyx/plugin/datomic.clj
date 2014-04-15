@@ -23,6 +23,13 @@
     (->> (d/seek-datoms db :eavt start-e)
          (r/take-while #(< (:e %) end-e)))))
 
+(defmethod p-ext/inject-pipeline-resources
+  :datomic/load-datoms
+  [{:keys [task-map fn-params] :as pipeline}]
+  (let [conn (d/connect (:datomic/uri task-map))
+        db (d/as-of (d/db conn) (:datomic/t task-map))]
+    {:params [db]}))
+
 (defmethod p-ext/apply-fn
   {:onyx/type :database
    :onyx/direction :input
@@ -34,13 +41,12 @@
         size (:datomic/partition-size task-map)
         partitions (partition-all 2 1 (range 0 t size))]
     {:results (map (fn [[low high]]
-                     {:low low :high (or high t) :t t :partition partition})
+                     {:low low :high (or high t) :partition partition})
                    partitions)}))
 
-(defn load-datoms [conn {:keys [low high t partition]}]
-  (let [db (d/as-of (d/db conn) t)]
-    (->> (datoms-between db partition low high)
-         (into [])
-         (map (partial unroll-datom db))
-         (hash-map :datoms))))
+(defn load-datoms [db {:keys [low high partition]}]
+  (->> (datoms-between db partition low high)
+       (into [])
+       (map (partial unroll-datom db))
+       (hash-map :datoms)))
 

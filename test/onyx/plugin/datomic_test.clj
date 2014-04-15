@@ -96,8 +96,7 @@
 (def peer-opts {:hornetq-host hornetq-host
                 :hornetq-port hornetq-port
                 :zk-addr "127.0.0.1:2181"
-                :onyx-id id
-                :fn-params {:load-datoms [conn]}})
+                :onyx-id id})
 
 (def query '[:find ?a :where
              [?e :user/name ?a]
@@ -107,10 +106,11 @@
 (defn my-test-query [{:keys [datoms] :as segment}]
   {:names (d/q query datoms)})
 
-(def workflow {:partition-datoms {:load-datoms {:datomic-query :out}}})
+(def workflow {:partition-datoms {:load-datoms {:query :persist}}})
 
 (def catalog
   [{:onyx/name :partition-datoms
+    :onyx/ident :datomic/partition-datoms
     :onyx/direction :input
     :onyx/type :database
     :onyx/medium :datomic
@@ -123,20 +123,24 @@
     :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms"}
 
    {:onyx/name :load-datoms
+    :onyx/ident :datomic/load-datoms
     :onyx/fn :onyx.plugin.datomic/load-datoms
     :onyx/type :transformer
     :onyx/consumption :concurrent
     :onyx/batch-size 1000
+    :datomic/uri db-uri
+    :datomic/t t
     :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
 
-   {:onyx/name :datomic-query
+   {:onyx/name :query
     :onyx/fn :onyx.plugin.datomic-test/my-test-query
     :onyx/type :transformer
     :onyx/consumption :concurrent
     :onyx/batch-size 1000
     :onyx/doc "Queries for names of 5 characters or fewer"}
 
-   {:onyx/name :out
+   {:onyx/name :persist
+    :onyx/ident :hornetq/write-segments
     :onyx/direction :output
     :onyx/consumption :concurrent
     :onyx/type :queue
