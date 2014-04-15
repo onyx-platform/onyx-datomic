@@ -105,7 +105,6 @@
              [(<= ?x 5)]])
 
 (defn my-test-query [{:keys [datoms] :as segment}]
-  (prn "--> " segment)
   {:names (d/q query datoms)})
 
 (def workflow {:partition-datoms {:load-datoms {:datomic-query :out}}})
