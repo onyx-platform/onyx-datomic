@@ -1,6 +1,5 @@
 (ns onyx.plugin.datomic-test
-  (:require [clojure.data.fressian :as fressian]
-            [midje.sweet :refer :all]
+  (:require [midje.sweet :refer :all]
             [datomic.api :as d]
             [onyx.plugin.datomic]
             [onyx.queue.hornetq-utils :as hq-utils]
