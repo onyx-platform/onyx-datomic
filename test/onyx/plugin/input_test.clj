@@ -1,12 +1,9 @@
-(ns onyx.plugin.datomic-test
+(ns onyx.plugin.input-test
   (:require [midje.sweet :refer :all]
             [datomic.api :as d]
             [onyx.plugin.datomic]
             [onyx.queue.hornetq-utils :as hq-utils]
-            [onyx.api])
-  (:import [org.hornetq.api.core.client HornetQClient]
-           [org.hornetq.api.core TransportConfiguration HornetQQueueExistsException]
-           [org.hornetq.core.remoting.impl.netty NettyConnectorFactory]))
+            [onyx.api]))
 
 (def db-uri (str "datomic:mem://" (java.util.UUID/randomUUID)))
 
@@ -102,7 +99,7 @@
     :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
 
    {:onyx/name :query
-    :onyx/fn :onyx.plugin.datomic-test/my-test-query
+    :onyx/fn :onyx.plugin.input-test/my-test-query
     :onyx/type :transformer
     :onyx/consumption :concurrent
     :onyx/batch-size 1000

@@ -30,6 +30,11 @@
         db (d/as-of (d/db conn) (:datomic/t task-map))]
     {:params [db]}))
 
+(defmethod p-ext/inject-pipeline-resources
+  :datomic/commit-tx
+  [{:keys [task-map]}]
+  {:datomic/conn (d/connect (:datomic/uri task-map))})
+
 (defmethod p-ext/apply-fn
   {:onyx/type :database
    :onyx/direction :input
@@ -49,4 +54,12 @@
        (into [])
        (map (partial unroll-datom db))
        (hash-map :datoms)))
+
+(defmethod p-ext/write-batch
+  {:onyx/type :database
+   :onyx/direction :output
+   :onyx/medium :datomic}
+  [{:keys [task-map] :as pipeline}]
+  @(d/transact (:datomic/conn pipeline) (:compressed task-map))
+  {:written? true})
 
