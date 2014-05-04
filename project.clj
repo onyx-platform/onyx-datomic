@@ -6,6 +6,6 @@
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [com.mdrogalis/onyx "0.2.0-SNAPSHOT"]
                  [com.datomic/datomic-free "0.9.4755"]]
-  :profiles {:dev {:dependencies [[midje "1.6.2" :exclusions [joda-time]]
+  :profiles {:dev {:dependencies [[midje "1.6.2"]
                                   [org.hornetq/hornetq-core-client "2.4.0.Final"]]
                    :plugins [[lein-midje "3.1.3"]]}})
