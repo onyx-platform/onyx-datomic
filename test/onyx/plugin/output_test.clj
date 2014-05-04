@@ -26,6 +26,8 @@
 
 @(d/transact datomic-conn schema)
 
+(def tx-queue (d/tx-report-queue datomic-conn))
+
 (def hornetq-host "localhost")
 
 (def hornetq-port 5445)
@@ -34,14 +36,14 @@
 
 (def in-queue (str (java.util.UUID/randomUUID)))
 
-(def input-data
+(def people
   [{:name "Mike"}
    {:name "Dorrene"}
    {:name "Benti"}
    {:name "Kristen"}
    {:name "Derek"}])
 
-(hq-utils/write-and-cap! hq-config in-queue input-data 1)
+(hq-utils/write-and-cap! hq-config in-queue people 1)
 
 (def id (str (java.util.UUID/randomUUID)))
 
@@ -76,7 +78,7 @@
     :onyx/type :transformer
     :onyx/consumption :concurrent
     :onyx/batch-size 2}
-
+   
    {:onyx/name :output
     :onyx/ident :datomic/commit-tx
     :onyx/direction :output
@@ -97,9 +99,12 @@
 
 (onyx.api/submit-job conn {:catalog catalog :workflow workflow})
 
-(Thread/sleep 1000)
+(doseq [_ (range (count people))]
+  (.take tx-queue))
 
-(prn (d/q '[:find ?a :where [_ :user/name ?a]] (d/db datomic-conn)))
+(def results (apply concat (d/q '[:find ?a :where [_ :user/name ?a]] (d/db datomic-conn))))
+
+(fact (set results) => (set (map :name people)))
 
 (doseq [v-peer v-peers]
   (try

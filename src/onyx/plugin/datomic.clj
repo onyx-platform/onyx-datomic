@@ -55,11 +55,25 @@
        (map (partial unroll-datom db))
        (hash-map :datoms)))
 
+(defmethod p-ext/apply-fn
+  {:onyx/type :database
+   :onyx/direction :output
+   :onyx/medium :datomic}
+  [_]
+  {})
+
+(defmethod p-ext/compress-batch
+  {:onyx/type :database
+   :onyx/direction :output
+   :onyx/medium :datomic}
+  [{:keys [decompressed] :as pipeline}]
+  {:compressed decompressed})
+
 (defmethod p-ext/write-batch
   {:onyx/type :database
    :onyx/direction :output
    :onyx/medium :datomic}
-  [{:keys [task-map] :as pipeline}]
-  @(d/transact (:datomic/conn pipeline) (:compressed task-map))
+  [{:keys [compressed] :as pipeline}]
+  @(d/transact (:datomic/conn pipeline) (mapcat :datoms compressed))
   {:written? true})
 
