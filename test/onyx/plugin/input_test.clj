@@ -77,8 +77,7 @@
 (def catalog
   [{:onyx/name :partition-datoms
     :onyx/ident :datomic/partition-datoms
-    :onyx/direction :input
-    :onyx/type :database
+    :onyx/type :input
     :onyx/medium :datomic
     :onyx/consumption :sequential
     :onyx/bootstrap? true
@@ -107,10 +106,9 @@
 
    {:onyx/name :persist
     :onyx/ident :hornetq/write-segments
-    :onyx/direction :output
-    :onyx/consumption :concurrent
-    :onyx/type :queue
+    :onyx/type :output
     :onyx/medium :hornetq
+    :onyx/consumption :concurrent
     :hornetq/queue-name out-queue
     :hornetq/host hornetq-host
     :hornetq/port hornetq-port

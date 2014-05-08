@@ -64,10 +64,9 @@
 (def catalog
   [{:onyx/name :input
     :onyx/ident :hornetq/read-segments
-    :onyx/direction :input
-    :onyx/consumption :concurrent
-    :onyx/type :queue
+    :onyx/type :input
     :onyx/medium :hornetq
+    :onyx/consumption :concurrent
     :hornetq/queue-name in-queue
     :hornetq/host hornetq-host
     :hornetq/port hornetq-port
@@ -81,8 +80,7 @@
    
    {:onyx/name :output
     :onyx/ident :datomic/commit-tx
-    :onyx/direction :output
-    :onyx/type :database
+    :onyx/type :output
     :onyx/medium :datomic
     :onyx/consumption :concurrent
     :datomic/uri db-uri
