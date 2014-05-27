@@ -40,7 +40,7 @@
   (let [conn (d/connect (:datomic/uri task-map))
         t (:datomic/t task-map)
         partition (:datomic/partition task-map)
-        size (:datomic/partition-size task-map)
+        size (:onyx/batch-size task-map)
         partitions (partition-all 2 1 (range 0 t size))]
     {:results (map (fn [[low high]]
                      {:low low :high (or high t) :partition partition})
