@@ -42,6 +42,8 @@
 
 (def t (d/next-t db))
 
+(def batch-size 1000)
+
 (def hornetq-host "localhost")
 
 (def hornetq-port 5445)
@@ -83,7 +85,7 @@
     :onyx/bootstrap? true
     :datomic/uri db-uri
     :datomic/t t
-    :onyx/batch-size 1000
+    :onyx/batch-size batch-size
     :datomic/partition :com.mdrogalis/people
     :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms"}
 
@@ -92,7 +94,7 @@
     :onyx/fn :onyx.plugin.datomic/load-datoms
     :onyx/type :transformer
     :onyx/consumption :concurrent
-    :onyx/batch-size 1000
+    :onyx/batch-size batch-size
     :datomic/uri db-uri
     :datomic/t t
     :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
@@ -101,7 +103,7 @@
     :onyx/fn :onyx.plugin.input-test/my-test-query
     :onyx/type :transformer
     :onyx/consumption :concurrent
-    :onyx/batch-size 1000
+    :onyx/batch-size batch-size
     :onyx/doc "Queries for names of 5 characters or fewer"}
 
    {:onyx/name :persist
@@ -112,7 +114,7 @@
     :hornetq/queue-name out-queue
     :hornetq/host hornetq-host
     :hornetq/port hornetq-port
-    :onyx/batch-size 1000
+    :onyx/batch-size batch-size
     :onyx/doc "Output source for intermediate query results"}])
 
 (def conn (onyx.api/connect (str "onyx:memory//localhost/" id) coord-opts))
