@@ -85,8 +85,9 @@
     :onyx/bootstrap? true
     :datomic/uri db-uri
     :datomic/t t
-    :onyx/batch-size batch-size
+    :datomic/datoms-per-segment batch-size
     :datomic/partition :com.mdrogalis/people
+    :onyx/batch-size batch-size
     :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms"}
 
    {:onyx/name :load-datoms
