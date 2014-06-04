@@ -25,14 +25,14 @@
 
 (defmethod p-ext/inject-pipeline-resources
   :datomic/load-datoms
-  [{:keys [task-map fn-params] :as pipeline}]
+  [_ {:keys [task-map fn-params] :as pipeline}]
   (let [conn (d/connect (:datomic/uri task-map))
         db (d/as-of (d/db conn) (:datomic/t task-map))]
     {:params [db]}))
 
 (defmethod p-ext/inject-pipeline-resources
   :datomic/commit-tx
-  [{:keys [task-map]}]
+  [_ {:keys [task-map]}]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
 (defmethod p-ext/apply-fn [:input :datomic]
