@@ -1,7 +1,7 @@
 (ns onyx.plugin.datomic
   (:require [clojure.core.reducers :as r]
             [datomic.api :as d]
-            [onyx.peer.pipeline-extensions :as p-ext]))
+            [onyx.peer.task-lifecycle-extensions :as l-ext]))
 
 (defn unroll-datom
   "Turns a datom into a vector of :eavt+op."
@@ -23,19 +23,19 @@
     (->> (d/seek-datoms db :eavt start-e)
          (r/take-while #(< (:e %) end-e)))))
 
-(defmethod p-ext/inject-pipeline-resources
+(defmethod l-ext/inject-lifecycle-resources
   :datomic/load-datoms
   [_ {:keys [task-map fn-params] :as pipeline}]
   (let [conn (d/connect (:datomic/uri task-map))
         db (d/as-of (d/db conn) (:datomic/t task-map))]
     {:params [db]}))
 
-(defmethod p-ext/inject-pipeline-resources
+(defmethod l-ext/inject-lifecycle-resources
   :datomic/commit-tx
   [_ {:keys [task-map]}]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
-(defmethod p-ext/apply-fn [:input :datomic]
+(defmethod l-ext/apply-fn [:input :datomic]
   [{:keys [task-map] :as pipeline}]
   (let [conn (d/connect (:datomic/uri task-map))
         t (:datomic/t task-map)
@@ -52,15 +52,15 @@
        (map (partial unroll-datom db))
        (hash-map :datoms)))
 
-(defmethod p-ext/apply-fn [:output :datomic]
+(defmethod l-ext/apply-fn [:output :datomic]
   [_]
   {})
 
-(defmethod p-ext/compress-batch [:output :datomic]
+(defmethod l-ext/compress-batch [:output :datomic]
   [{:keys [decompressed] :as pipeline}]
   {:compressed decompressed})
 
-(defmethod p-ext/write-batch [:output :datomic]
+(defmethod l-ext/write-batch [:output :datomic]
   [{:keys [compressed] :as pipeline}]
   @(d/transact (:datomic/conn pipeline) (mapcat :datoms compressed))
   {:written? true})

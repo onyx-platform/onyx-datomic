@@ -102,8 +102,6 @@
 
 (def results (apply concat (d/q '[:find ?a :where [_ :user/name ?a]] (d/db datomic-conn))))
 
-(fact (set results) => (set (map :name people)))
-
 (doseq [v-peer v-peers]
   (try
     ((:shutdown-fn v-peer))
@@ -112,4 +110,6 @@
 (try
   (onyx.api/shutdown conn)
   (catch Exception e (prn e)))
+
+(fact (set results) => (set (map :name people)))
 
