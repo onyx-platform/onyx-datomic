@@ -25,26 +25,27 @@
 
 (defmethod l-ext/inject-lifecycle-resources
   :datomic/load-datoms
-  [_ {:keys [task-map fn-params] :as pipeline}]
+  [_ {:keys [onyx.core/task-map onyx.core/fn-params] :as pipeline}]
   (let [conn (d/connect (:datomic/uri task-map))
         db (d/as-of (d/db conn) (:datomic/t task-map))]
-    {:params [db]}))
+    {:onyx.core/params [db]}))
 
 (defmethod l-ext/inject-lifecycle-resources
   :datomic/commit-tx
-  [_ {:keys [task-map]}]
+  [_ {:keys [onyx.core/task-map]}]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
 (defmethod l-ext/apply-fn [:input :datomic]
-  [{:keys [task-map] :as pipeline}]
+  [{:keys [onyx.core/task-map] :as pipeline}]
   (let [conn (d/connect (:datomic/uri task-map))
         t (:datomic/t task-map)
         partition (:datomic/partition task-map)
         size (:datomic/datoms-per-segment task-map)
         partitions (partition-all 2 1 (range 0 t size))]
-    {:results (map (fn [[low high]]
-                     {:low low :high (or high t) :partition partition})
-                   partitions)}))
+    {:onyx.core/results
+     (map (fn [[low high]]
+            {:low low :high (or high t) :partition partition})
+          partitions)}))
 
 (defn load-datoms [db {:keys [low high partition]}]
   (->> (datoms-between db partition low high)
@@ -57,11 +58,11 @@
   {})
 
 (defmethod l-ext/compress-batch [:output :datomic]
-  [{:keys [decompressed] :as pipeline}]
-  {:compressed decompressed})
+  [{:keys [onyx.core/decompressed] :as pipeline}]
+  {:onyx.core/compressed decompressed})
 
 (defmethod l-ext/write-batch [:output :datomic]
-  [{:keys [compressed] :as pipeline}]
+  [{:keys [onyx.core/compressed] :as pipeline}]
   @(d/transact (:datomic/conn pipeline) (mapcat :datoms compressed))
-  {:written? true})
+  {:onyx.core/written? true})
 
