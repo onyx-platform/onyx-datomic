@@ -24,7 +24,7 @@
          (r/take-while #(< (:e %) end-e)))))
 
 (defmethod l-ext/inject-lifecycle-resources
-  :datomic/load-datoms
+  :datomic/read-datoms
   [_ {:keys [onyx.core/task-map onyx.core/fn-params] :as pipeline}]
   (let [conn (d/connect (:datomic/uri task-map))
         db (d/as-of (d/db conn) (:datomic/t task-map))]
@@ -47,7 +47,7 @@
             {:low low :high (or high t) :partition partition})
           partitions)}))
 
-(defn load-datoms [db {:keys [low high partition]}]
+(defn read-datoms [db {:keys [low high partition]}]
   (->> (datoms-between db partition low high)
        (into [])
        (map (partial unroll-datom db))

@@ -74,7 +74,7 @@
 (defn my-test-query [{:keys [datoms] :as segment}]
   {:names (d/q query datoms)})
 
-(def workflow {:partition-datoms {:load-datoms {:query :persist}}})
+(def workflow {:partition-datoms {:read-datoms {:query :persist}}})
 
 (def catalog
   [{:onyx/name :partition-datoms
@@ -88,11 +88,11 @@
     :datomic/datoms-per-segment batch-size
     :datomic/partition :com.mdrogalis/people
     :onyx/batch-size batch-size
-    :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms"}
+    :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms downstream"}
 
-   {:onyx/name :load-datoms
-    :onyx/ident :datomic/load-datoms
-    :onyx/fn :onyx.plugin.datomic/load-datoms
+   {:onyx/name :read-datoms
+    :onyx/ident :datomic/read-datoms
+    :onyx/fn :onyx.plugin.datomic/read-datoms
     :onyx/type :transformer
     :onyx/consumption :concurrent
     :onyx/batch-size batch-size
