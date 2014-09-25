@@ -34,12 +34,12 @@ In your peer boot-up namespace:
  :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms"}
 ```
 
-##### load-datoms
+##### read-datoms
 
 ```clojure
-{:onyx/name :load-datoms
- :onyx/ident :datomic/load-datoms
- :onyx/fn :onyx.plugin.datomic/load-datoms
+{:onyx/name :read-datoms
+ :onyx/ident :datomic/read-datoms
+ :onyx/fn :onyx.plugin.datomic/read-datoms
  :onyx/type :transformer
  :onyx/consumption :concurrent
  :datomic/uri db-uri
