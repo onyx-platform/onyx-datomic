@@ -40,7 +40,7 @@ In your peer boot-up namespace:
 {:onyx/name :read-datoms
  :onyx/ident :datomic/read-datoms
  :onyx/fn :onyx.plugin.datomic/read-datoms
- :onyx/type :transformer
+ :onyx/type :function
  :onyx/consumption :concurrent
  :datomic/uri db-uri
  :datomic/t t

@@ -100,7 +100,7 @@
    {:onyx/name :read-datoms
     :onyx/ident :datomic/read-datoms
     :onyx/fn :onyx.plugin.datomic/read-datoms
-    :onyx/type :transformer
+    :onyx/type :function
     :onyx/consumption :concurrent
     :onyx/batch-size batch-size
     :datomic/uri db-uri
@@ -109,7 +109,7 @@
 
    {:onyx/name :query
     :onyx/fn :onyx.plugin.input-test/my-test-query
-    :onyx/type :transformer
+    :onyx/type :function
     :onyx/consumption :concurrent
     :onyx/batch-size batch-size
     :onyx/doc "Queries for names of 5 characters or fewer"}
