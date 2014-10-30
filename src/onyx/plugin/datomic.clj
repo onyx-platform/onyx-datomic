@@ -55,8 +55,7 @@
        (hash-map :datoms)))
 
 (defmethod p-ext/apply-fn [:output :datomic]
-  [_]
-  {})
+  [_] {})
 
 (defmethod p-ext/compress-batch [:output :datomic]
   [{:keys [onyx.core/decompressed] :as pipeline}]
