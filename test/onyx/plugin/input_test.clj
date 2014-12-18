@@ -1,9 +1,34 @@
 (ns onyx.plugin.input-test
   (:require [midje.sweet :refer :all]
+            [com.stuartsierra.component :as component]
             [datomic.api :as d]
             [onyx.plugin.datomic]
             [onyx.queue.hornetq-utils :as hq-utils]
+            [onyx.system :refer [onyx-development-env]]
             [onyx.api]))
+
+(def id (java.util.UUID/randomUUID))
+
+(def env-config
+  {:hornetq/mode :vm
+   :hornetq/server? true
+   :hornetq.server/type :vm
+   :zookeeper/address "127.0.0.1:2185"
+   :zookeeper/server? true
+   :zookeeper.server/port 2185
+   :onyx/id id})
+
+(def peer-config
+  {:hornetq/mode :vm
+   :zookeeper/address "127.0.0.1:2185"
+   :onyx/id id
+   :onyx.peer/inbox-capacity 100
+   :onyx.peer/outbox-capacity 100
+   :onyx.peer/job-scheduler :onyx.job-scheduler/round-robin})
+
+(def dev (onyx-development-env env-config))
+
+(def env (component/start dev))
 
 (def db-uri (str "datomic:mem://" (java.util.UUID/randomUUID)))
 
@@ -53,25 +78,6 @@
 (def out-queue (str (java.util.UUID/randomUUID)))
 
 (hq-utils/create-queue! hq-config out-queue)
-
-(def id (str (java.util.UUID/randomUUID)))
-
-(def coord-opts
-  {:hornetq/mode :vm
-   :hornetq/server? true
-   :hornetq.server/type :vm
-   :zookeeper/address "127.0.0.1:2185"
-   :zookeeper/server? true
-   :zookeeper.server/port 2185
-   :onyx/id id
-   :onyx.coordinator/revoke-delay 5000})
-
-(def peer-opts
-  {:hornetq/mode :vm
-   :zookeeper/address "127.0.0.1:2185"
-   :onyx/id id})
-
-(def conn (onyx.api/connect :memory coord-opts))
 
 (def query '[:find ?a :where
              [?e :user/name ?a]
@@ -125,16 +131,19 @@
     :onyx/batch-size batch-size
     :onyx/doc "Output source for intermediate query results"}])
 
-(def v-peers (onyx.api/start-peers conn 1 peer-opts))
+(def v-peers (onyx.api/start-peers! 1 peer-config))
 
-(onyx.api/submit-job conn {:catalog catalog :workflow workflow})
+(onyx.api/submit-job
+ peer-config
+ {:catalog catalog :workflow workflow
+  :task-scheduler :onyx.task-scheduler/round-robin})
 
 (def results (hq-utils/consume-queue! hq-config out-queue 1))
 
 (doseq [v-peer v-peers]
   ((:shutdown-fn v-peer)))
 
-(onyx.api/shutdown conn)
+(component/stop env)
 
 (fact (into #{} (mapcat #(apply concat %) (map :names results)))
       => #{"Mike" "Benti" "Derek"})
