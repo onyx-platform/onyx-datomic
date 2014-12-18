@@ -40,7 +40,7 @@
     :db.install/_partition :db.part/db}
 
    {:db/id #db/id [:db.part/db]
-    :db/ident :user/name
+    :db/ident :name
     :db/valueType :db.type/string
     :db/cardinality :db.cardinality/one
     :db.install/_attribute :db.part/db}])
@@ -72,7 +72,7 @@
 
 (hq-utils/write-and-cap! hq-config in-queue people 1)
 
-(def workflow {:in {:to-datom :out}})
+(def workflow {:in {:identity :out}})
 
 (def catalog
   [{:onyx/name :in
@@ -85,8 +85,8 @@
     :hornetq/port hornetq-port
     :onyx/batch-size 2}
 
-   {:onyx/name :to-datom
-    :onyx/fn :onyx.plugin.output-test/to-datom
+   {:onyx/name :identity
+    :onyx/fn :clojure.core/identity
     :onyx/type :function
     :onyx/consumption :concurrent
     :onyx/batch-size 2}
@@ -97,12 +97,9 @@
     :onyx/medium :datomic
     :onyx/consumption :concurrent
     :datomic/uri db-uri
+    :datomic/partition :com.mdrogalis/people
     :onyx/batch-size 2
-    :onyx/doc "Transacts :datoms to storage"}])
-
-(defn to-datom [{:keys [name] :as segment}]
-  {:datoms [{:db/id (d/tempid :com.mdrogalis/people)
-             :user/name name}]})
+    :onyx/doc "Transacts segments to storage"}])
 
 (def v-peers (onyx.api/start-peers! 1 peer-config))
 
@@ -114,7 +111,7 @@
 (doseq [_ (range (count people))]
   (.take tx-queue))
 
-(def results (apply concat (d/q '[:find ?a :where [_ :user/name ?a]] (d/db datomic-conn))))
+(def results (apply concat (d/q '[:find ?a :where [_ :name ?a]] (d/db datomic-conn))))
 
 (doseq [v-peer v-peers]
   ((:shutdown-fn v-peer)))

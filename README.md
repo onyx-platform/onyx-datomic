@@ -43,6 +43,7 @@ In your peer boot-up namespace:
  :onyx/type :function
  :onyx/consumption :concurrent
  :datomic/uri db-uri
+ :datomic/partition my.datomic.partition
  :datomic/t t
  :onyx/batch-size batch-size
  :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
@@ -51,14 +52,15 @@ In your peer boot-up namespace:
 ##### commit-tx
 
 ```clojure
-{:onyx/name :output
+{:onyx/name :out
  :onyx/ident :datomic/commit-tx
  :onyx/type :output
  :onyx/medium :datomic
  :onyx/consumption :concurrent
  :datomic/uri db-uri
+ :datomic/partition my.datomic.partition
  :onyx/batch-size batch-size
- :onyx/doc "Transacts :datoms to storage"}
+ :onyx/doc "Transacts segments to storage"}
 ```
 
 #### Attributes
