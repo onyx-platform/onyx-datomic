@@ -1,13 +1,13 @@
 (ns onyx.plugin.input-test
   (:require [midje.sweet :refer :all]
-            [com.stuartsierra.component :as component]
             [datomic.api :as d]
             [onyx.plugin.datomic]
             [onyx.queue.hornetq-utils :as hq-utils]
-            [onyx.system :refer [onyx-development-env]]
             [onyx.api]))
 
 (def id (java.util.UUID/randomUUID))
+
+(def scheduler :onyx.job-scheduler/round-robin)
 
 (def env-config
   {:hornetq/mode :vm
@@ -16,7 +16,8 @@
    :zookeeper/address "127.0.0.1:2185"
    :zookeeper/server? true
    :zookeeper.server/port 2185
-   :onyx/id id})
+   :onyx/id id
+   :onyx.peer/job-scheduler scheduler})
 
 (def peer-config
   {:hornetq/mode :vm
@@ -24,11 +25,9 @@
    :onyx/id id
    :onyx.peer/inbox-capacity 100
    :onyx.peer/outbox-capacity 100
-   :onyx.peer/job-scheduler :onyx.job-scheduler/round-robin})
+   :onyx.peer/job-scheduler scheduler})
 
-(def dev (onyx-development-env env-config))
-
-(def env (component/start dev))
+(def env (onyx.api/start-env env-config))
 
 (def db-uri (str "datomic:mem://" (java.util.UUID/randomUUID)))
 
@@ -141,9 +140,9 @@
 (def results (hq-utils/consume-queue! hq-config out-queue 1))
 
 (doseq [v-peer v-peers]
-  ((:shutdown-fn v-peer)))
+  (onyx.api/shutdown-peer v-peer))
 
-(component/stop env)
+(onyx.api/shutdown-env env)
 
 (fact (into #{} (mapcat #(apply concat %) (map :names results)))
       => #{"Mike" "Benti" "Derek"})
