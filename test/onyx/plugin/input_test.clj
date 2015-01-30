@@ -7,24 +7,31 @@
 
 (def id (java.util.UUID/randomUUID))
 
+(def config (read-string (slurp (clojure.java.io/resource "test-config.edn"))))
+
 (def scheduler :onyx.job-scheduler/round-robin)
 
 (def env-config
-  {:hornetq/mode :vm
+  {:hornetq/mode :standalone
    :hornetq/server? true
-   :hornetq.server/type :vm
-   :zookeeper/address "127.0.0.1:2185"
+   :hornetq.server/type :embedded
+   :hornetq.embedded/config ["hornetq/non-clustered-1.xml"]
+   :hornetq.standalone/host (:host (:non-clustered (:hornetq config)))
+   :hornetq.standalone/port (:port (:non-clustered (:hornetq config)))
+   :zookeeper/address (:address (:zookeeper config))
    :zookeeper/server? true
-   :zookeeper.server/port 2185
+   :zookeeper.server/port (:spawn-port (:zookeeper config))
    :onyx/id id
    :onyx.peer/job-scheduler scheduler})
 
 (def peer-config
-  {:hornetq/mode :vm
-   :zookeeper/address "127.0.0.1:2185"
+  {:hornetq/mode :standalone
+   :hornetq.standalone/host (:host (:non-clustered (:hornetq config)))
+   :hornetq.standalone/port (:port (:non-clustered (:hornetq config)))
+   :zookeeper/address (:address (:zookeeper config))
    :onyx/id id
-   :onyx.peer/inbox-capacity 100
-   :onyx.peer/outbox-capacity 100
+   :onyx.peer/inbox-capacity (:inbox-capacity (:peer config))
+   :onyx.peer/outbox-capacity (:outbox-capacity (:peer config))
    :onyx.peer/job-scheduler scheduler})
 
 (def env (onyx.api/start-env env-config))
@@ -72,7 +79,8 @@
 
 (def hornetq-port 5465)
 
-(def hq-config {"host" hornetq-host "port" hornetq-port})
+(def hq-config {"host" (:host (:non-clustered (:hornetq config)))
+                "port" (:port (:non-clustered (:hornetq config)))})
 
 (def out-queue (str (java.util.UUID/randomUUID)))
 
@@ -125,8 +133,8 @@
     :onyx/medium :hornetq
     :onyx/consumption :concurrent
     :hornetq/queue-name out-queue
-    :hornetq/host hornetq-host
-    :hornetq/port hornetq-port
+    :hornetq/host (:host (:non-clustered (:hornetq config)))
+    :hornetq/port (:port (:non-clustered (:hornetq config)))
     :onyx/batch-size batch-size
     :onyx/doc "Output source for intermediate query results"}])
 
