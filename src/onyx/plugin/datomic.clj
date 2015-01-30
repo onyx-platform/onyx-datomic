@@ -68,3 +68,18 @@
                     compressed))
   {:onyx.core/written? true})
 
+;; Enable transacting raw batches. It needs the medium to change thanks to the write-batch
+;; multimethod dispatching over [:output :datomic-tx]
+(defmethod p-ext/apply-fn [:output :datomic-tx]
+  [_] {})
+
+(defmethod p-ext/compress-batch [:output :datomic-tx]
+  [{:keys [onyx.core/decompressed] :as pipeline}]
+  {:onyx.core/compressed decompressed})
+
+(defmethod p-ext/write-batch [:output :datomic-tx]
+  [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
+  ;; Transact each tx individually to avoid tempid conflicts.
+  (doseq [tx compressed]
+    @(d/transact (:datomic/conn pipeline) tx))
+  {:onyx.core/written? true})
