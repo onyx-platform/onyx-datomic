@@ -62,7 +62,9 @@
   {:onyx.core/compressed decompressed})
 
 (defmethod p-ext/write-batch [:output :datomic]
-  [{:keys [onyx.core/compressed] :as pipeline}]
-  @(d/transact (:datomic/conn pipeline) (mapcat :datoms compressed))
+  [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
+  @(d/transact (:datomic/conn pipeline)
+               (map #(assoc % :db/id (d/tempid (:datomic/partition task-map)))
+                    compressed))
   {:onyx.core/written? true})
 
