@@ -84,8 +84,8 @@
     :onyx/medium :hornetq
     :onyx/consumption :concurrent
     :hornetq/queue-name in-queue
-    :hornetq/host hornetq-host
-    :hornetq/port hornetq-port
+    :hornetq/host (:host (:non-clustered (:hornetq config)))
+    :hornetq/port (:port (:non-clustered (:hornetq config)))
     :onyx/batch-size 2}
 
    {:onyx/name :identity
