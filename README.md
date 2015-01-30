@@ -51,11 +51,27 @@ In your peer boot-up namespace:
 
 ##### commit-tx
 
+The first variant expects to be fed in a stream of new entity maps and will automatically assign tempid's for the partition given.
+
 ```clojure
 {:onyx/name :out
  :onyx/ident :datomic/commit-tx
  :onyx/type :output
  :onyx/medium :datomic
+ :onyx/consumption :concurrent
+ :datomic/uri db-uri
+ :datomic/partition my.datomic.partition
+ :onyx/batch-size batch-size
+ :onyx/doc "Transacts segments to storage"}
+```
+
+The `:onyx/medium :datomic-tx` variant expects a tx, pretty much exactly as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions.
+
+```clojure
+{:onyx/name :out
+ :onyx/ident :datomic/commit-tx
+ :onyx/type :output
+ :onyx/medium :datomic-tx
  :onyx/consumption :concurrent
  :datomic/uri db-uri
  :datomic/partition my.datomic.partition
