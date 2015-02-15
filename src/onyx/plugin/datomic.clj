@@ -2,7 +2,9 @@
   (:require [clojure.core.reducers :as r]
             [datomic.api :as d]
             [onyx.peer.task-lifecycle-extensions :as l-ext]
-            [onyx.peer.pipeline-extensions :as p-ext]))
+            [onyx.peer.pipeline-extensions :as p-ext]
+            [taoensso.timbre :refer [info]]
+            [clojure.data.fressian :as fressian]))
 
 (defn unroll-datom
   "Turns a datom into a vector of :eavt+op."
@@ -70,16 +72,18 @@
 
 ;; Enable transacting raw batches. It needs the medium to change thanks to the write-batch
 ;; multimethod dispatching over [:output :datomic-tx]
-(defmethod p-ext/apply-fn [:output :datomic-tx]
-  [_] {})
+(defmethod p-ext/apply-fn [:output :datomic-tx] [_] {})
 
 (defmethod p-ext/compress-batch [:output :datomic-tx]
   [{:keys [onyx.core/decompressed] :as pipeline}]
-  {:onyx.core/compressed decompressed})
+  (if (seq decompressed)
+    {:onyx.core/compressed decompressed}
+    {}))
 
 (defmethod p-ext/write-batch [:output :datomic-tx]
   [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
   ;; Transact each tx individually to avoid tempid conflicts.
   (doseq [tx compressed]
-    @(d/transact (:datomic/conn pipeline) tx))
-  {:onyx.core/written? true})
+    (let [t @(d/transact (:datomic/conn pipeline) (fressian/read (:tx tx)))]
+      (info t)))
+  {:onyx.core/written? (seq compressed)})

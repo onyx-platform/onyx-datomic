@@ -7,7 +7,7 @@ Onyx plugin providing read and write facilities for batch processing a Datomic d
 In your project file:
 
 ```clojure
-[com.mdrogalis/onyx-datomic "0.5.0"]
+[com.mdrogalis/onyx-datomic "0.5.2"]
 ```
 
 In your peer boot-up namespace:
@@ -65,7 +65,7 @@ The first variant expects to be fed in a stream of new entity maps and will auto
  :onyx/doc "Transacts segments to storage"}
 ```
 
-The `:onyx/medium :datomic-tx` variant expects a tx, pretty much exactly as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions.
+The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. You will need to respond with a [{:tx (.array (fressian/write [...]))}] though. This is to prevent your tx data from getting munged in the transport between peers on Onyx. 
 
 ```clojure
 {:onyx/name :out
@@ -77,6 +77,16 @@ The `:onyx/medium :datomic-tx` variant expects a tx, pretty much exactly as if i
  :datomic/partition my.datomic.partition
  :onyx/batch-size batch-size
  :onyx/doc "Transacts segments to storage"}
+```
+
+A function of the following form should be used to transform your data to be ready for throwing at the datomic commit-tx:
+
+```
+(require '[clojure.data.fressian :as fressian])
+(require '[datomic.api :as d])
+
+(defn datomic-txfn [e]
+  [{:tx (.array (fressian/write [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]))}])
 ```
 
 #### Attributes
