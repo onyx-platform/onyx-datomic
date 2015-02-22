@@ -3,8 +3,7 @@
             [datomic.api :as d]
             [onyx.peer.task-lifecycle-extensions :as l-ext]
             [onyx.peer.pipeline-extensions :as p-ext]
-            [taoensso.timbre :refer [info]]
-            [clojure.data.fressian :as fressian]))
+            [taoensso.timbre :refer [info]]))
 
 (defn unroll-datom
   "Turns a datom into a vector of :eavt+op."
@@ -84,6 +83,6 @@
   [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
   ;; Transact each tx individually to avoid tempid conflicts.
   (doseq [tx compressed]
-    (let [t @(d/transact (:datomic/conn pipeline) (fressian/read (:tx tx)))]
+    (let [t @(d/transact (:datomic/conn pipeline) (:tx tx))]
       (info t)))
   {:onyx.core/written? (seq compressed)})
