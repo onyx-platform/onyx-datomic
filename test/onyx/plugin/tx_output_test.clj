@@ -51,6 +51,12 @@
     :db/unique :db.unique/identity
     :db/cardinality :db.cardinality/one
     :db.install/_attribute :db.part/db}
+
+   {:db/id #db/id [:db.part/db]
+    :db/ident :uuid 
+    :db/valueType :db.type/uuid
+    :db/cardinality :db.cardinality/one
+    :db.install/_attribute :db.part/db}
    
    {:db/id #db/id [:db.part/db]
     :db/ident :age
@@ -72,16 +78,16 @@
 (hq-utils/create-queue! hq-config in-queue)
 
 (def txes
-  [schema
-   (map #(assoc % :db/id (d/tempid :db.part/user))
-        [{:name "Mike" :age 27}
+  [{:tx schema}
+   {:tx (map #(assoc % :db/id (d/tempid :db.part/user))
+        [{:name "Mike" :age 27 :uuid #uuid "f47ac10b-58cc-4372-a567-0e02b2c3d479"}
          {:name "Dorrene" :age 21}
          {:name "Benti" :age 10}
          {:name "Kristen"}
-         {:name "Derek"}])
-   [{:db/id [:name "Mike"] :age 30}]
-   [[:db/retract [:name "Dorrene"] :age 21]]
-   [[:db.fn/cas [:name "Benti"] :age 10 18]]])
+         {:name "Derek"}])}
+   {:tx [{:db/id [:name "Mike"] :age 30}]}
+   {:tx [[:db/retract [:name "Dorrene"] :age 21]]}
+   {:tx [[:db.fn/cas [:name "Benti"] :age 10 18]]}])
 
 (hq-utils/write-and-cap! hq-config in-queue txes 1)
 
@@ -126,12 +132,12 @@
 
 (let [db (d/db datomic-conn)]
   (def results
-    (map (comp (juxt :name :age) (partial d/entity db)) (apply concat (d/q '[:find ?e :where [?e :name]] db)))))
+    (map (comp (juxt :name :age :uuid) (partial d/entity db)) (apply concat (d/q '[:find ?e :where [?e :name]] db)))))
 
 (doseq [v-peer v-peers]
   (onyx.api/shutdown-peer v-peer))
 
 (onyx.api/shutdown-env env)
 
-(fact (set results) => #{["Mike" 30] ["Dorrene" nil] ["Benti" 18] ["Kristen" nil] ["Derek" nil]})
+(fact (set results) => #{["Mike" 30 #uuid "f47ac10b-58cc-4372-a567-0e02b2c3d479"] ["Dorrene" nil nil] ["Benti" 18 nil] ["Kristen" nil nil] ["Derek" nil nil]})
 
