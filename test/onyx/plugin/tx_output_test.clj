@@ -3,7 +3,6 @@
             [datomic.api :as d]
             [onyx.plugin.datomic]
             [onyx.queue.hornetq-utils :as hq-utils]
-            [clojure.data.fressian :as fressian]
             [onyx.api]))
 
 (def id (java.util.UUID/randomUUID))
