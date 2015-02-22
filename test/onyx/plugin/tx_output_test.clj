@@ -3,6 +3,7 @@
             [datomic.api :as d]
             [onyx.plugin.datomic]
             [onyx.queue.hornetq-utils :as hq-utils]
+            [clojure.data.fressian :as fressian]
             [onyx.api]))
 
 (def id (java.util.UUID/randomUUID))
@@ -72,16 +73,16 @@
 (hq-utils/create-queue! hq-config in-queue)
 
 (def txes
-  [schema
-   (map #(assoc % :db/id (d/tempid :db.part/user))
+  [{:tx schema}
+   {:tx (map #(assoc % :db/id (d/tempid :db.part/user))
         [{:name "Mike" :age 27}
          {:name "Dorrene" :age 21}
          {:name "Benti" :age 10}
          {:name "Kristen"}
-         {:name "Derek"}])
-   [{:db/id [:name "Mike"] :age 30}]
-   [[:db/retract [:name "Dorrene"] :age 21]]
-   [[:db.fn/cas [:name "Benti"] :age 10 18]]])
+         {:name "Derek"}])}
+   {:tx [{:db/id [:name "Mike"] :age 30}]}
+   {:tx [[:db/retract [:name "Dorrene"] :age 21]]}
+   {:tx [[:db.fn/cas [:name "Benti"] :age 10 18]]}])
 
 (hq-utils/write-and-cap! hq-config in-queue txes 1)
 
