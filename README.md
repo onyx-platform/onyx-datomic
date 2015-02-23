@@ -65,7 +65,7 @@ The first variant expects to be fed in a stream of new entity maps and will auto
  :onyx/doc "Transacts segments to storage"}
 ```
 
-The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. You will need to respond with a [{:tx (.array (fressian/write [...]))}] though. This is to prevent your tx data from getting munged in the transport between peers on Onyx. 
+The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. 
 
 ```clojure
 {:onyx/name :out
