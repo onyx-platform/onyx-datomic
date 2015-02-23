@@ -82,8 +82,9 @@ The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready f
 
 Segments to be supplied to the :datomic/commit-tx out task in a form such as the following:
 
+```clojure
 (require '[datomic.api :as d])
-```
+
 {:tx [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]}
 ```
 
