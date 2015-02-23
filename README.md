@@ -79,14 +79,12 @@ The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready f
  :onyx/doc "Transacts segments to storage"}
 ```
 
-A function of the following form should be used to transform your data to be ready for throwing at the datomic commit-tx:
 
-```
-(require '[clojure.data.fressian :as fressian])
+Segments to be supplied to the :datomic/commit-tx out task in a form such as the following:
+
 (require '[datomic.api :as d])
-
-(defn datomic-txfn [e]
-  [{:tx (.array (fressian/write [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]))}])
+```
+{:tx [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]}
 ```
 
 #### Attributes
