@@ -1,40 +1,33 @@
 (ns onyx.plugin.input-test
-  (:require [midje.sweet :refer :all]
-            [datomic.api :as d]
+  (:require [clojure.core.async :refer [chan >!! <!!]]
+            [onyx.peer.task-lifecycle-extensions :as l-ext]
+            [onyx.plugin.core-async :refer [take-segments!]]
             [onyx.plugin.datomic]
-            [onyx.queue.hornetq-utils :as hq-utils]
-            [onyx.api]))
+            [onyx.api]
+            [midje.sweet :refer :all]
+            [datomic.api :as d]))
 
 (def id (java.util.UUID/randomUUID))
 
-(def config (read-string (slurp (clojure.java.io/resource "test-config.edn"))))
-
-(def scheduler :onyx.job-scheduler/round-robin)
-
 (def env-config
-  {:hornetq/mode :standalone
-   :hornetq/server? true
-   :hornetq.server/type :embedded
-   :hornetq.embedded/config ["hornetq/non-clustered-1.xml"]
-   :hornetq.standalone/host (:host (:non-clustered (:hornetq config)))
-   :hornetq.standalone/port (:port (:non-clustered (:hornetq config)))
-   :zookeeper/address (:address (:zookeeper config))
+  {:zookeeper/address "127.0.0.1:2188"
    :zookeeper/server? true
-   :zookeeper.server/port (:spawn-port (:zookeeper config))
-   :onyx/id id
-   :onyx.peer/job-scheduler scheduler})
+   :zookeeper.server/port 2188
+   :onyx/id id})
 
 (def peer-config
-  {:hornetq/mode :standalone
-   :hornetq.standalone/host (:host (:non-clustered (:hornetq config)))
-   :hornetq.standalone/port (:port (:non-clustered (:hornetq config)))
-   :zookeeper/address (:address (:zookeeper config))
-   :onyx/id id
-   :onyx.peer/inbox-capacity (:inbox-capacity (:peer config))
-   :onyx.peer/outbox-capacity (:outbox-capacity (:peer config))
-   :onyx.peer/job-scheduler scheduler})
+  {:zookeeper/address "127.0.0.1:2188"
+   :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
+   :onyx.messaging/impl :aeron
+   :onyx.messaging/peer-port-range [40200 40400]
+   :onyx.messaging/peer-ports [40199]
+   :onyx.messaging/bind-addr "localhost"
+   :onyx.messaging/backpressure-strategy :high-restart-latency
+   :onyx/id id})
 
 (def env (onyx.api/start-env env-config))
+
+(def peer-group (onyx.api/start-peer-group peer-config))
 
 (def db-uri (str "datomic:mem://" (java.util.UUID/randomUUID)))
 
@@ -75,16 +68,7 @@
 
 (def batch-size 1000)
 
-(def hornetq-host "localhost")
-
-(def hornetq-port 5465)
-
-(def hq-config {"host" (:host (:non-clustered (:hornetq config)))
-                "port" (:port (:non-clustered (:hornetq config)))})
-
-(def out-queue (str (java.util.UUID/randomUUID)))
-
-(hq-utils/create-queue! hq-config out-queue)
+(def out-chan (chan 1000))
 
 (def query '[:find ?a :where
              [?e :user/name ?a]
@@ -94,31 +78,21 @@
 (defn my-test-query [{:keys [datoms] :as segment}]
   {:names (d/q query datoms)})
 
-(def workflow {:partition-datoms {:read-datoms {:query :persist}}})
+(def workflow
+  [[:read-datoms :query]
+   [:query :persist]])
 
 (def catalog
-  [{:onyx/name :partition-datoms
-    :onyx/ident :datomic/partition-datoms
+  [{:onyx/name :read-datoms
+    :onyx/ident :datomic/read-datoms
     :onyx/type :input
     :onyx/medium :datomic
-    :onyx/consumption :sequential
-    :onyx/bootstrap? true
     :datomic/uri db-uri
     :datomic/t t
-    :datomic/datoms-per-segment batch-size
     :datomic/partition :com.mdrogalis/people
+    :datomic/datomis-index :eavt
     :onyx/batch-size batch-size
-    :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms downstream"}
-
-   {:onyx/name :read-datoms
-    :onyx/ident :datomic/read-datoms
-    :onyx/fn :onyx.plugin.datomic/read-datoms
-    :onyx/type :function
-    :onyx/consumption :concurrent
-    :onyx/batch-size batch-size
-    :datomic/uri db-uri
-    :datomic/t t
-    :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
+    :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 
    {:onyx/name :query
     :onyx/fn :onyx.plugin.input-test/my-test-query
@@ -128,30 +102,29 @@
     :onyx/doc "Queries for names of 5 characters or fewer"}
 
    {:onyx/name :persist
-    :onyx/ident :hornetq/write-segments
+    :onyx/ident :core.async/write-to-chan
     :onyx/type :output
-    :onyx/medium :hornetq
-    :onyx/consumption :concurrent
-    :hornetq/queue-name out-queue
-    :hornetq/host (:host (:non-clustered (:hornetq config)))
-    :hornetq/port (:port (:non-clustered (:hornetq config)))
-    :onyx/batch-size batch-size
-    :onyx/doc "Output source for intermediate query results"}])
+    :onyx/medium :core.async
+    :onyx/batch-size 1000
+    :onyx/max-peers 1
+    :onyx/doc "Writes segments to a core.async channel"}])
 
-(def v-peers (onyx.api/start-peers! 1 peer-config))
+(def v-peers (onyx.api/start-peers 3 peer-group))
 
 (onyx.api/submit-job
  peer-config
  {:catalog catalog :workflow workflow
   :task-scheduler :onyx.task-scheduler/round-robin})
 
-(def results (hq-utils/consume-queue! hq-config out-queue 1))
+(def results (take-segments! out-chan))
+
+(fact (into #{} (mapcat #(apply concat %) (map :names results)))
+      => #{"Mike" "Benti" "Derek"})
 
 (doseq [v-peer v-peers]
   (onyx.api/shutdown-peer v-peer))
 
-(onyx.api/shutdown-env env)
+(onyx.api/shutdown-peer-group peer-group)
 
-(fact (into #{} (mapcat #(apply concat %) (map :names results)))
-      => #{"Mike" "Benti" "Derek"})
+(onyx.api/shutdown-env env)
 

@@ -1,11 +1,12 @@
-(defproject com.mdrogalis/onyx-datomic "0.5.3"
+(defproject com.mdrogalis/onyx-datomic "0.6.0-SNAPSHOT"
   :description "Onyx plugin for Datomic"
   :url "https://github.com/MichaelDrogalis/onyx-datomic"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
-                 [com.mdrogalis/onyx "0.5.3"]]
+                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [com.mdrogalis/onyx "0.6.0-SNAPSHOT"]
+                 [com.taoensso/timbre "3.0.1"]]
   :profiles {:dev {:dependencies [[midje "1.6.2"]
-                                  [org.hornetq/hornetq-core-client "2.4.0.Final"]
-                                  [com.datomic/datomic-free "0.9.5130"]]
+                                  [com.datomic/datomic-free "0.9.5153"]]
                    :plugins [[lein-midje "3.1.3"]]}})
