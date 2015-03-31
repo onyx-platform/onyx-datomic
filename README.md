@@ -65,7 +65,7 @@ The first variant expects to be fed in a stream of new entity maps and will auto
  :onyx/doc "Transacts segments to storage"}
 ```
 
-The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. You will need to respond with a [{:tx (.array (fressian/write [...]))}] though. This is to prevent your tx data from getting munged in the transport between peers on Onyx. 
+The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. 
 
 ```clojure
 {:onyx/name :out
@@ -79,14 +79,13 @@ The `:onyx/medium :datomic-tx` variant expects a tx, almost as if it was ready f
  :onyx/doc "Transacts segments to storage"}
 ```
 
-A function of the following form should be used to transform your data to be ready for throwing at the datomic commit-tx:
 
-```
-(require '[clojure.data.fressian :as fressian])
+Segments to be supplied to the :datomic/commit-tx out task in a form such as the following:
+
+```clojure
 (require '[datomic.api :as d])
 
-(defn datomic-txfn [e]
-  [{:tx (.array (fressian/write [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]))}])
+{:tx [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]}
 ```
 
 #### Attributes
