@@ -66,7 +66,7 @@
 
 (def t (d/next-t db))
 
-(def batch-size 1000)
+(def batch-size 20)
 
 (def out-chan (chan 1000))
 
@@ -90,7 +90,8 @@
     :datomic/uri db-uri
     :datomic/t t
     :datomic/partition :com.mdrogalis/people
-    :datomic/datomis-index :eavt
+    :datomic/datoms-index :eavt
+    :datomic/datoms-per-segment 20
     :onyx/batch-size batch-size
     :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 
@@ -105,9 +106,12 @@
     :onyx/ident :core.async/write-to-chan
     :onyx/type :output
     :onyx/medium :core.async
-    :onyx/batch-size 1000
+    :onyx/batch-size 20
     :onyx/max-peers 1
     :onyx/doc "Writes segments to a core.async channel"}])
+
+(defmethod l-ext/inject-lifecycle-resources :persist
+  [_ _] {:core.async/chan out-chan})
 
 (def v-peers (onyx.api/start-peers 3 peer-group))
 
@@ -121,10 +125,11 @@
 (fact (into #{} (mapcat #(apply concat %) (map :names results)))
       => #{"Mike" "Benti" "Derek"})
 
-(doseq [v-peer v-peers]
-  (onyx.api/shutdown-peer v-peer))
+(do
+  (doseq [v-peer v-peers]
+    (onyx.api/shutdown-peer v-peer))
 
-(onyx.api/shutdown-peer-group peer-group)
+  (onyx.api/shutdown-peer-group peer-group)
 
-(onyx.api/shutdown-env env)
+  (onyx.api/shutdown-env env))
 

@@ -22,16 +22,16 @@
         db (d/as-of (d/db conn) (:datomic/t task-map))]
     (go
      (try
-       (let [iterator (d/datoms db (:datomic/datoms-index task-map))]
-         (doseq [datoms (partition-all (:onyx/batch-size task-map) iterator)]
-           (>!! ch {:content (map unroll-datom datoms)}))
-         (>!! ch :done))
+       (let [d-seq (d/datoms db (:datomic/datoms-index task-map))]
+         (doseq [datoms (partition-all (:datomic/datoms-per-segment task-map) d-seq)]
+           (>!! ch {:content {:datoms (map (partial unroll-datom db) datoms)}})))
+       (>!! ch :done)
        (catch Exception e
          (fatal e))))
     {:datomic/read-ch ch
-     :datomi/pending-messages (atom {})}))
+     :datomic/pending-messages (atom {})}))
 
-(defmethod p-ext/read-batch :datomic/read-datoms
+(defmethod p-ext/read-batch [:input :datomic]
   [{:keys [datomic/read-ch datomic/pending-messages onyx.core/task-map]}]
   (let [pending (count (keys @pending-messages))
         max-pending (or (:onyx/max-pending task-map) 10000)
@@ -72,3 +72,33 @@
     (let [t @(d/transact (:datomic/conn pipeline) (:tx tx))]
       (info t)))
   {:onyx.core/written? (seq compressed)})
+
+(defmethod p-ext/seal-resource [:output :datomic]
+  [event]
+  {})
+
+(defmethod p-ext/seal-resource [:output :datomic-tx]
+  [event]
+  {})
+
+(defmethod p-ext/ack-message [:input :datomic]
+  [{:keys [datomic/pending-messages onyx.core/log onyx.core/task-id]} message-id]
+  (swap! pending-messages dissoc message-id))
+
+(defmethod p-ext/retry-message [:input :datomic]
+  [{:keys [datomic/pending-messages datomic/read-ch onyx.core/log]} message-id]
+  (let [msg (get @pending-messages message-id)]
+    (if (= :done (:message msg))
+      (>!! read-ch :done)
+      (>!! read-ch (get @pending-messages message-id))))
+  (swap! pending-messages dissoc message-id))
+
+(defmethod p-ext/pending? [:input :datomic]
+  [{:keys [datomic/pending-messages]} message-id]
+  (get @pending-messages message-id))
+
+(defmethod p-ext/drained? [:input :datomic]
+  [{:keys [datomic/pending-messages]}]
+  (let [x @pending-messages]
+    (and (= (count (keys x)) 1)
+         (= (first (map :message (vals x))) :done))))
