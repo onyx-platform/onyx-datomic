@@ -8,5 +8,5 @@ pom.xml.asc
 /.lein-*
 /.nrepl-port
 data
-onyx.log
+onyx.log*
 hs_err_pid*
