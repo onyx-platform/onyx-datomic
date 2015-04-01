@@ -54,33 +54,6 @@
       (swap! pending-messages assoc (:id m) (select-keys m [:message])))
     {:onyx.core/batch batch}))
 
-(defmethod l-ext/inject-lifecycle-resources :datomic/commit-tx
-  [_ {:keys [onyx.core/task-map]}]
-  {:datomic/conn (d/connect (:datomic/uri task-map))})
-
-(defmethod p-ext/write-batch [:output :datomic]
-  [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
-  @(d/transact (:datomic/conn pipeline)
-               (map #(assoc % :db/id (d/tempid (:datomic/partition task-map)))
-                    compressed))
-  {:onyx.core/written? true})
-
-(defmethod p-ext/write-batch [:output :datomic-tx]
-  [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
-  ;; Transact each tx individually to avoid tempid conflicts.
-  (doseq [tx compressed]
-    (let [t @(d/transact (:datomic/conn pipeline) (:tx tx))]
-      (info t)))
-  {:onyx.core/written? (seq compressed)})
-
-(defmethod p-ext/seal-resource [:output :datomic]
-  [event]
-  {})
-
-(defmethod p-ext/seal-resource [:output :datomic-tx]
-  [event]
-  {})
-
 (defmethod p-ext/ack-message [:input :datomic]
   [{:keys [datomic/pending-messages onyx.core/log onyx.core/task-id]} message-id]
   (swap! pending-messages dissoc message-id))
@@ -102,3 +75,31 @@
   (let [x @pending-messages]
     (and (= (count (keys x)) 1)
          (= (first (map :message (vals x))) :done))))
+
+(defmethod l-ext/inject-lifecycle-resources :datomic/commit-tx
+  [_ {:keys [onyx.core/task-map]}]
+  {:datomic/conn (d/connect (:datomic/uri task-map))})
+
+(defmethod p-ext/write-batch [:output :datomic]
+  [{:keys [onyx.core/results onyx.core/task-map] :as pipeline}]
+  (let [messages (mapcat :leaves results)]
+    @(d/transact (:datomic/conn pipeline)
+                 (map #(assoc % :db/id (d/tempid (:datomic/partition task-map)))
+                      (map :message messages)))
+    {:onyx.core/written? true}))
+
+(defmethod p-ext/write-batch [:output :datomic-tx]
+  [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
+  ;; Transact each tx individually to avoid tempid conflicts.
+  (doseq [tx compressed]
+    (let [t @(d/transact (:datomic/conn pipeline) (:tx tx))]
+      (info t)))
+  {:onyx.core/written? (seq compressed)})
+
+(defmethod p-ext/seal-resource [:output :datomic]
+  [event]
+  {})
+
+(defmethod p-ext/seal-resource [:output :datomic-tx]
+  [event]
+  {})

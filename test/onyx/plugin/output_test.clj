@@ -1,44 +1,35 @@
 (ns onyx.plugin.output-test
   (:require [midje.sweet :refer :all]
             [datomic.api :as d]
+            [clojure.core.async :refer [chan >!! <!! close!]]
+            [onyx.peer.task-lifecycle-extensions :as l-ext]
+            [onyx.plugin.core-async]
             [onyx.plugin.datomic]
-            [onyx.queue.hornetq-utils :as hq-utils]
             [onyx.api]))
 
 (def id (java.util.UUID/randomUUID))
 
-(def config (read-string (slurp (clojure.java.io/resource "test-config.edn"))))
-
-(def scheduler :onyx.job-scheduler/round-robin)
-
 (def env-config
-  {:hornetq/mode :standalone
-   :hornetq/server? true
-   :hornetq.server/type :embedded
-   :hornetq.embedded/config ["hornetq/non-clustered-1.xml"]
-   :hornetq.standalone/host (:host (:non-clustered (:hornetq config)))
-   :hornetq.standalone/port (:port (:non-clustered (:hornetq config)))
-   :zookeeper/address (:address (:zookeeper config))
+  {:zookeeper/address "127.0.0.1:2188"
    :zookeeper/server? true
-   :zookeeper.server/port (:spawn-port (:zookeeper config))
-   :onyx/id id
-   :onyx.peer/job-scheduler scheduler})
+   :zookeeper.server/port 2188
+   :onyx/id id})
 
 (def peer-config
-  {:hornetq/mode :standalone
-   :hornetq.standalone/host (:host (:non-clustered (:hornetq config)))
-   :hornetq.standalone/port (:port (:non-clustered (:hornetq config)))
-   :zookeeper/address (:address (:zookeeper config))
-   :onyx/id id
-   :onyx.peer/inbox-capacity (:inbox-capacity (:peer config))
-   :onyx.peer/outbox-capacity (:outbox-capacity (:peer config))
-   :onyx.peer/job-scheduler scheduler})
+  {:zookeeper/address "127.0.0.1:2188"
+   :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
+   :onyx.messaging/impl :aeron
+   :onyx.messaging/peer-port-range [40200 40400]
+   :onyx.messaging/peer-ports [40199]
+   :onyx.messaging/bind-addr "localhost"
+   :onyx.messaging/backpressure-strategy :high-restart-latency
+   :onyx/id id})
 
 (def env (onyx.api/start-env env-config))
 
-(def db-uri (str "datomic:mem://" (java.util.UUID/randomUUID)))
+(def peer-group (onyx.api/start-peer-group peer-config))
 
-(def input-queue-name (str (java.util.UUID/randomUUID)))
+(def db-uri (str "datomic:mem://" (java.util.UUID/randomUUID)))
 
 (def schema
   [{:db/id #db/id [:db.part/db]
@@ -59,13 +50,6 @@
 
 (def tx-queue (d/tx-report-queue datomic-conn))
 
-(def hq-config {"host" (:host (:non-clustered (:hornetq config)))
-                "port" (:port (:non-clustered (:hornetq config)))})
-
-(def in-queue (str (java.util.UUID/randomUUID)))
-
-(hq-utils/create-queue! hq-config in-queue)
-
 (def people
   [{:name "Mike"}
    {:name "Dorrene"}
@@ -73,23 +57,31 @@
    {:name "Kristen"}
    {:name "Derek"}])
 
-(hq-utils/write-and-cap! hq-config in-queue people 1)
+(def in-chan (chan 1000))
 
-(def workflow {:in {:identity :out}})
+(doseq [person people]
+  (>!! in-chan person))
+
+(>!! in-chan :done)
+
+(def workflow
+  [[:in :identity]
+   [:identity :out]])
+
+(defn identity-fn [segment]
+  segment)
 
 (def catalog
   [{:onyx/name :in
-    :onyx/ident :hornetq/read-segments
+    :onyx/ident :core.async/read-from-chan
     :onyx/type :input
-    :onyx/medium :hornetq
-    :onyx/consumption :concurrent
-    :hornetq/queue-name in-queue
-    :hornetq/host (:host (:non-clustered (:hornetq config)))
-    :hornetq/port (:port (:non-clustered (:hornetq config)))
-    :onyx/batch-size 2}
+    :onyx/medium :core.async
+    :onyx/batch-size 1000
+    :onyx/max-peers 1
+    :onyx/doc "Reads segments from a core.async channel"}
 
    {:onyx/name :identity
-    :onyx/fn :clojure.core/identity
+    :onyx/fn :onyx.plugin.output-test/identity-fn
     :onyx/type :function
     :onyx/consumption :concurrent
     :onyx/batch-size 2}
@@ -98,13 +90,15 @@
     :onyx/ident :datomic/commit-tx
     :onyx/type :output
     :onyx/medium :datomic
-    :onyx/consumption :concurrent
     :datomic/uri db-uri
     :datomic/partition :com.mdrogalis/people
     :onyx/batch-size 2
     :onyx/doc "Transacts segments to storage"}])
 
-(def v-peers (onyx.api/start-peers! 1 peer-config))
+(defmethod l-ext/inject-lifecycle-resources :in
+  [_ _] {:core.async/chan in-chan})
+
+(def v-peers (onyx.api/start-peers 3 peer-group))
 
 (onyx.api/submit-job
  peer-config
@@ -116,10 +110,13 @@
 
 (def results (apply concat (d/q '[:find ?a :where [_ :name ?a]] (d/db datomic-conn))))
 
-(doseq [v-peer v-peers]
-  (onyx.api/shutdown-peer v-peer))
-
-(onyx.api/shutdown-env env)
-
 (fact (set results) => (set (map :name people)))
+
+(do
+  (doseq [v-peer v-peers]
+    (onyx.api/shutdown-peer v-peer))
+
+  (onyx.api/shutdown-peer-group peer-group)
+
+  (onyx.api/shutdown-env env))
 
