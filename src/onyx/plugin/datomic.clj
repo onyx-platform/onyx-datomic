@@ -4,7 +4,7 @@
             [onyx.peer.task-lifecycle-extensions :as l-ext]
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.extensions :as extensions]
-            [taoensso.timbre :refer [info fatal]]))
+            [taoensso.timbre :refer [info debug fatal]]))
 
 (defn unroll-datom
   "Turns a datom into a vector of :eavt+op."
@@ -89,12 +89,11 @@
     {:onyx.core/written? true}))
 
 (defmethod p-ext/write-batch [:output :datomic-tx]
-  [{:keys [onyx.core/compressed onyx.core/task-map] :as pipeline}]
+  [{:keys [onyx.core/results] :as pipeline}]
   ;; Transact each tx individually to avoid tempid conflicts.
-  (doseq [tx compressed]
-    (let [t @(d/transact (:datomic/conn pipeline) (:tx tx))]
-      (info t)))
-  {:onyx.core/written? (seq compressed)})
+  (doseq [tx (mapcat :leaves results)]
+    @(d/transact (:datomic/conn pipeline) (:tx (:message tx))))
+  {:onyx.core/written? true})
 
 (defmethod p-ext/seal-resource [:output :datomic]
   [event]

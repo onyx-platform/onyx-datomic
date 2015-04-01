@@ -83,7 +83,6 @@
    {:onyx/name :identity
     :onyx/fn :onyx.plugin.output-test/identity-fn
     :onyx/type :function
-    :onyx/consumption :concurrent
     :onyx/batch-size 2}
    
    {:onyx/name :out
