@@ -9,4 +9,5 @@
                  [com.taoensso/timbre "3.0.1"]]
   :profiles {:dev {:dependencies [[midje "1.6.2"]
                                   [com.datomic/datomic-free "0.9.5153"]]
-                   :plugins [[lein-midje "3.1.3"]]}})
+                   :plugins [[lein-midje "3.1.3"]]}
+             :circle-ci {:jvm-opts ["-Xmx4g"]}})
