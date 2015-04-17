@@ -99,9 +99,9 @@
     :onyx/batch-size 2}
    
    {:onyx/name :out
-    :onyx/ident :datomic/commit-tx
+    :onyx/ident :datomic/commit-bulk-tx
     :onyx/type :output
-    :onyx/medium :datomic-tx
+    :onyx/medium :datomic
     :datomic/uri db-uri
     :datomic/partition :com.mdrogalis/people
     :onyx/batch-size 2

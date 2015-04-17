@@ -31,7 +31,7 @@
     {:datomic/read-ch ch
      :datomic/pending-messages (atom {})}))
 
-(defmethod p-ext/read-batch [:input :datomic]
+(defmethod p-ext/read-batch :datomic/read-datoms
   [{:keys [datomic/read-ch datomic/pending-messages onyx.core/task-map]}]
   (let [pending (count (keys @pending-messages))
         max-pending (or (:onyx/max-pending task-map) 10000)
@@ -54,11 +54,11 @@
       (swap! pending-messages assoc (:id m) (select-keys m [:message])))
     {:onyx.core/batch batch}))
 
-(defmethod p-ext/ack-message [:input :datomic]
+(defmethod p-ext/ack-message :datomic/read-datoms
   [{:keys [datomic/pending-messages onyx.core/log onyx.core/task-id]} message-id]
   (swap! pending-messages dissoc message-id))
 
-(defmethod p-ext/retry-message [:input :datomic]
+(defmethod p-ext/retry-message :datomic/read-datoms
   [{:keys [datomic/pending-messages datomic/read-ch onyx.core/log]} message-id]
   (let [msg (get @pending-messages message-id)]
     (if (= :done (:message msg))
@@ -66,11 +66,11 @@
       (>!! read-ch (get @pending-messages message-id))))
   (swap! pending-messages dissoc message-id))
 
-(defmethod p-ext/pending? [:input :datomic]
+(defmethod p-ext/pending? :datomic/read-datoms
   [{:keys [datomic/pending-messages]} message-id]
   (get @pending-messages message-id))
 
-(defmethod p-ext/drained? [:input :datomic]
+(defmethod p-ext/drained? :datomic/read-datoms
   [{:keys [datomic/pending-messages]}]
   (let [x @pending-messages]
     (and (= (count (keys x)) 1)
@@ -80,7 +80,7 @@
   [_ {:keys [onyx.core/task-map]}]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
-(defmethod p-ext/write-batch [:output :datomic]
+(defmethod p-ext/write-batch :datomic/commit-tx
   [{:keys [onyx.core/results onyx.core/task-map] :as pipeline}]
   (let [messages (mapcat :leaves results)]
     @(d/transact (:datomic/conn pipeline)
@@ -88,17 +88,17 @@
                       (map :message messages)))
     {:onyx.core/written? true}))
 
-(defmethod p-ext/write-batch [:output :datomic-tx]
+(defmethod p-ext/write-batch :datomic/commit-bulk-tx
   [{:keys [onyx.core/results] :as pipeline}]
   ;; Transact each tx individually to avoid tempid conflicts.
   (doseq [tx (mapcat :leaves results)]
     @(d/transact (:datomic/conn pipeline) (:tx (:message tx))))
   {:onyx.core/written? true})
 
-(defmethod p-ext/seal-resource [:output :datomic]
+(defmethod p-ext/seal-resource :datomic/commit-tx
   [event]
   {})
 
-(defmethod p-ext/seal-resource [:output :datomic-tx]
+(defmethod p-ext/seal-resource :datomic/commit-bulk-tx
   [event]
   {})
