@@ -80,6 +80,10 @@
   [_ {:keys [onyx.core/task-map]}]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
+(defmethod l-ext/inject-lifecycle-resources :datomic/commit-bulk-tx
+  [_ {:keys [onyx.core/task-map]}]
+  {:datomic/conn (d/connect (:datomic/uri task-map))})
+
 (defmethod p-ext/write-batch :datomic/commit-tx
   [{:keys [onyx.core/results onyx.core/task-map] :as pipeline}]
   (let [messages (mapcat :leaves results)]

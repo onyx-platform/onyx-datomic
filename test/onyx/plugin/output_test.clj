@@ -18,7 +18,7 @@
 (def peer-config
   {:zookeeper/address "127.0.0.1:2188"
    :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
-   :onyx.messaging/impl :aeron
+   :onyx.messaging/impl :netty
    :onyx.messaging/peer-port-range [40200 40400]
    :onyx.messaging/peer-ports [40199]
    :onyx.messaging/bind-addr "localhost"
@@ -48,8 +48,6 @@
 
 @(d/transact datomic-conn schema)
 
-(def tx-queue (d/tx-report-queue datomic-conn))
-
 (def people
   [{:name "Mike"}
    {:name "Dorrene"}
@@ -68,9 +66,6 @@
   [[:in :identity]
    [:identity :out]])
 
-(defn identity-fn [segment]
-  segment)
-
 (def catalog
   [{:onyx/name :in
     :onyx/ident :core.async/read-from-chan
@@ -81,7 +76,7 @@
     :onyx/doc "Reads segments from a core.async channel"}
 
    {:onyx/name :identity
-    :onyx/fn :onyx.plugin.output-test/identity-fn
+    :onyx/fn :clojure.core/identity
     :onyx/type :function
     :onyx/batch-size 2}
    
@@ -99,23 +94,22 @@
 
 (def v-peers (onyx.api/start-peers 3 peer-group))
 
-(onyx.api/submit-job
- peer-config
- {:catalog catalog :workflow workflow
-  :task-scheduler :onyx.task-scheduler/balanced})
+(def job-id
+  (:job-id
+   (onyx.api/submit-job
+    peer-config
+    {:catalog catalog :workflow workflow
+     :task-scheduler :onyx.task-scheduler/balanced})))
 
-(doseq [_ (range (count people))]
-  (.take tx-queue))
+(onyx.api/await-job-completion peer-config job-id)
 
 (def results (apply concat (d/q '[:find ?a :where [_ :name ?a]] (d/db datomic-conn))))
 
 (fact (set results) => (set (map :name people)))
 
-(do
-  (doseq [v-peer v-peers]
-    (onyx.api/shutdown-peer v-peer))
+(doseq [v-peer v-peers]
+  (onyx.api/shutdown-peer v-peer))
 
-  (onyx.api/shutdown-peer-group peer-group)
+(onyx.api/shutdown-peer-group peer-group)
 
-  (onyx.api/shutdown-env env))
-
+(onyx.api/shutdown-env env)

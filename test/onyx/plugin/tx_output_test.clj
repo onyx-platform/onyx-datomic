@@ -18,7 +18,7 @@
 (def peer-config
   {:zookeeper/address "127.0.0.1:2188"
    :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
-   :onyx.messaging/impl :aeron
+   :onyx.messaging/impl :netty
    :onyx.messaging/peer-port-range [40200 40400]
    :onyx.messaging/peer-ports [40199]
    :onyx.messaging/bind-addr "localhost"
@@ -58,8 +58,6 @@
 (d/create-database db-uri)
 
 (def datomic-conn (d/connect db-uri))
-
-(def tx-queue (d/tx-report-queue datomic-conn))
 
 (def txes
   [{:tx schema}
@@ -112,17 +110,19 @@
 
 (def v-peers (onyx.api/start-peers 3 peer-group))
 
-(onyx.api/submit-job
- peer-config
- {:catalog catalog :workflow workflow
-  :task-scheduler :onyx.task-scheduler/balanced})
+(def job-id
+  (:job-id
+   (onyx.api/submit-job
+    peer-config
+    {:catalog catalog :workflow workflow
+     :task-scheduler :onyx.task-scheduler/balanced})))
 
-(doseq [_ (range (count txes))]
-  (.take tx-queue))
+(onyx.api/await-job-completion peer-config job-id)
 
 (let [db (d/db datomic-conn)]
   (def results
-    (map (comp (juxt :name :age :uuid) (partial d/entity db)) (apply concat (d/q '[:find ?e :where [?e :name]] db)))))
+    (map (comp (juxt :name :age :uuid) (partial d/entity db))
+         (apply concat (d/q '[:find ?e :where [?e :name]] db)))))
 
 (fact (set results) =>
       #{["Mike" 30 #uuid "f47ac10b-58cc-4372-a567-0e02b2c3d479"]
