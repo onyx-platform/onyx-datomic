@@ -7,7 +7,7 @@ Onyx plugin providing read and write facilities for batch processing a Datomic d
 In your project file:
 
 ```clojure
-[com.mdrogalis/onyx-datomic "0.5.3"]
+[com.mdrogalis/onyx-datomic "0.6.0-SNAPSHOT"]
 ```
 
 In your peer boot-up namespace:
@@ -17,22 +17,6 @@ In your peer boot-up namespace:
 ```
 
 #### Catalog entries
-
-##### partition-datoms
-```clojure
-{:onyx/name :partition-datoms
- :onyx/ident :datomic/partition-datoms
- :onyx/type :input
- :onyx/medium :datomic
- :onyx/consumption :sequential
- :onyx/bootstrap? true
- :datomic/uri db-uri
- :datomic/t t
- :datomic/partition :com.my.example/partition
- :datomic/datoms-per-segment n
- :onyx/batch-size batch-size
- :onyx/doc "Creates ranges over an :eavt index to parellelize loading datoms"}
-```
 
 ##### read-datoms
 
@@ -44,6 +28,7 @@ In your peer boot-up namespace:
  :onyx/consumption :concurrent
  :datomic/uri db-uri
  :datomic/partition my.datomic.partition
+ :datomic/datoms-per-segment 20
  :datomic/t t
  :onyx/batch-size batch-size
  :onyx/doc "Reads and enqueues a range of the :eavt datom index"}
@@ -96,6 +81,7 @@ Segments to be supplied to the :datomic/commit-tx out task in a form such as the
 |`:datomic/t`                  | `integer` | The t-value of the database to read from
 |`:datomic/partition`          | `keyword` | The partition of the database to read out of
 |`:datomic/datoms-per-segment` | `integer` | The number of datoms to compress into a single segment
+|`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
 
 #### Contributing
 
@@ -103,6 +89,6 @@ Pull requests into the master branch are welcomed.
 
 #### License
 
-Copyright © 2014 Michael Drogalis
+Copyright © 2015 Michael Drogalis
 
 Distributed under the Eclipse Public License, the same as Clojure.
