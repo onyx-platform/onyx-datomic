@@ -2,7 +2,6 @@
   (:require [midje.sweet :refer :all]
             [datomic.api :as d]
             [clojure.core.async :refer [chan >!! <!! close!]]
-            [onyx.peer.task-lifecycle-extensions :as l-ext]
             [onyx.plugin.core-async]
             [onyx.plugin.datomic]
             [onyx.api]))
@@ -105,8 +104,19 @@
     :onyx/batch-size 2
     :onyx/doc "Transacts segments to storage"}])
 
-(defmethod l-ext/inject-lifecycle-resources :in
-  [_ _] {:core.async/chan in-chan})
+(defn inject-in-ch [event lifecycle]
+  {:core.async/chan in-chan})
+
+(def in-calls
+  {:lifecycle/before-task :onyx.plugin.tx-output-test/inject-in-ch})
+
+(def lifecycles
+  [{:lifecycle/task :in
+    :lifecycle/calls :onyx.plugin.tx-output-test/in-calls}
+   {:lifecycle/task :in
+    :lifecycle/calls :onyx.plugin.core-async/reader-calls}
+   {:lifecycle/task :out
+    :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-calls}])
 
 (def v-peers (onyx.api/start-peers 3 peer-group))
 
@@ -114,7 +124,7 @@
   (:job-id
    (onyx.api/submit-job
     peer-config
-    {:catalog catalog :workflow workflow
+    {:catalog catalog :workflow workflow :lifecycles lifecycles
      :task-scheduler :onyx.task-scheduler/balanced})))
 
 (onyx.api/await-job-completion peer-config job-id)
