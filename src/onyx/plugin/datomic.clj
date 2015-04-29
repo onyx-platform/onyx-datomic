@@ -107,10 +107,10 @@
   {})
 
 (def read-datoms-calls
-  {:lifecycle/before-task :onyx.plugin.datomic/inject-read-datoms-resources})
+  {:lifecycle/before-task inject-read-datoms-resources})
 
 (def write-tx-calls
-  {:lifecycle/before-task :onyx.plugin.datomic/inject-write-tx-resources})
+  {:lifecycle/before-task inject-write-tx-resources})
 
 (def write-bulk-tx-calls
-  {:lifecycle/before-task :onyx.plugin.datomic/inject-write-bulk-tx-resources})
+  {:lifecycle/before-task inject-write-bulk-tx-resources})

@@ -113,7 +113,7 @@
   {:core.async/chan out-chan})
 
 (def persist-calls
-  {:lifecycle/before-task :onyx.plugin.input-test/inject-persist-ch})
+  {:lifecycle/before-task inject-persist-ch})
 
 (def lifecycles
   [{:lifecycle/task :read-datoms
