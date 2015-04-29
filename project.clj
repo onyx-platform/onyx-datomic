@@ -5,7 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [com.mdrogalis/onyx "0.6.0-alpha1"]
+                 [com.mdrogalis/onyx "0.6.0-SNAPSHOT"]
                  [com.taoensso/timbre "3.0.1"]]
   :profiles {:dev {:dependencies [[midje "1.6.2"]
                                   [com.datomic/datomic-free "0.9.5153"]]
