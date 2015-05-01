@@ -72,9 +72,9 @@ Lifecycle entry:
 
 ##### commit-bulk-tx
 
-Writes transactions of new entity maps and will automatically assign tempid's for the partition.
-
 Writes transactions via the `:tx` segment key to a Datomic database. The value of `:tx` should be as if it were ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. 
+
+Catalog entry:
 
 ```clojure
 {:onyx/name :write-bulk-datoms
@@ -93,6 +93,13 @@ An example value of `:tx` would look like the following:
 (require '[datomic.api :as d])
 
 {:tx [[:db/add (d/tempid :db.part/user) :db/doc "Hello world"]]}
+```
+
+Lifecycle entry:
+
+```clojure
+{:lifecycle/task :write-bulk-datoms
+ :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-calls}
 ```
 
 #### Attributes
