@@ -91,6 +91,7 @@
     :datomic/partition :com.mdrogalis/people
     :datomic/datoms-index :eavt
     :datomic/datoms-per-segment 20
+    :onyx/max-peers 1
     :onyx/batch-size batch-size
     :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 
