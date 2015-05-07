@@ -1,6 +1,5 @@
 (ns onyx.plugin.input-test
   (:require [clojure.core.async :refer [chan >!! <!!]]
-            [onyx.peer.task-lifecycle-extensions :as l-ext]
             [onyx.plugin.core-async :refer [take-segments!]]
             [onyx.plugin.datomic]
             [onyx.api]
@@ -92,6 +91,7 @@
     :datomic/partition :com.mdrogalis/people
     :datomic/datoms-index :eavt
     :datomic/datoms-per-segment 20
+    :onyx/max-peers 1
     :onyx/batch-size batch-size
     :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 
@@ -110,14 +110,25 @@
     :onyx/max-peers 1
     :onyx/doc "Writes segments to a core.async channel"}])
 
-(defmethod l-ext/inject-lifecycle-resources :persist
-  [_ _] {:core.async/chan out-chan})
+(defn inject-persist-ch [event lifecycle]
+  {:core.async/chan out-chan})
+
+(def persist-calls
+  {:lifecycle/before-task inject-persist-ch})
+
+(def lifecycles
+  [{:lifecycle/task :read-datoms
+    :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}
+   {:lifecycle/task :persist
+    :lifecycle/calls :onyx.plugin.input-test/persist-calls}
+   {:lifecycle/task :persist
+    :lifecycle/calls :onyx.plugin.core-async/writer-calls}])
 
 (def v-peers (onyx.api/start-peers 3 peer-group))
 
 (onyx.api/submit-job
  peer-config
- {:catalog catalog :workflow workflow
+ {:catalog catalog :workflow workflow :lifecycles lifecycles
   :task-scheduler :onyx.task-scheduler/balanced})
 
 (def results (take-segments! out-chan))

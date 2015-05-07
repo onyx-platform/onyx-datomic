@@ -1,7 +1,6 @@
 (ns onyx.plugin.datomic
   (:require [clojure.core.async :refer [chan >! >!! <!! close! go timeout alts!!]]
             [datomic.api :as d]
-            [onyx.peer.task-lifecycle-extensions :as l-ext]
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.extensions :as extensions]
             [taoensso.timbre :refer [info debug fatal]]))
@@ -15,8 +14,8 @@
    (:tx datom)
    (:added datom)])
 
-(defmethod l-ext/inject-lifecycle-resources :datomic/read-datoms
-  [_ {:keys [onyx.core/task-map onyx.core/log onyx.core/task-id] :as event}]
+(defn inject-read-datoms-resources
+  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id] :as event} lifecycle]
   (let [ch (chan (or (:datomic/read-buffer task-map) 1000))
         conn (d/connect (:datomic/uri task-map))
         db (d/as-of (d/db conn) (:datomic/t task-map))]
@@ -76,12 +75,12 @@
     (and (= (count (keys x)) 1)
          (= (first (map :message (vals x))) :done))))
 
-(defmethod l-ext/inject-lifecycle-resources :datomic/commit-tx
-  [_ {:keys [onyx.core/task-map]}]
+(defn inject-write-tx-resources
+  [{:keys [onyx.core/task-map]} lifecycle]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
-(defmethod l-ext/inject-lifecycle-resources :datomic/commit-bulk-tx
-  [_ {:keys [onyx.core/task-map]}]
+(defn inject-write-bulk-tx-resources
+  [{:keys [onyx.core/task-map]} lifecycle]
   {:datomic/conn (d/connect (:datomic/uri task-map))})
 
 (defmethod p-ext/write-batch :datomic/commit-tx
@@ -106,3 +105,12 @@
 (defmethod p-ext/seal-resource :datomic/commit-bulk-tx
   [event]
   {})
+
+(def read-datoms-calls
+  {:lifecycle/before-task inject-read-datoms-resources})
+
+(def write-tx-calls
+  {:lifecycle/before-task inject-write-tx-resources})
+
+(def write-bulk-tx-calls
+  {:lifecycle/before-task inject-write-bulk-tx-resources})
