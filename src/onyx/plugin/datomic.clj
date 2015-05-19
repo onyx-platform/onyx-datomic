@@ -109,10 +109,10 @@
   {})
 
 (def read-datoms-calls
-  {:lifecycle/before-task inject-read-datoms-resources})
+  {:lifecycle/before-task-start inject-read-datoms-resources})
 
 (def write-tx-calls
-  {:lifecycle/before-task inject-write-tx-resources})
+  {:lifecycle/before-task-start inject-write-tx-resources})
 
 (def write-bulk-tx-calls
-  {:lifecycle/before-task inject-write-bulk-tx-resources})
+  {:lifecycle/before-task-start inject-write-bulk-tx-resources})

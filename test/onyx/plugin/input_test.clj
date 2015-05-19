@@ -114,7 +114,7 @@
   {:core.async/chan out-chan})
 
 (def persist-calls
-  {:lifecycle/before-task inject-persist-ch})
+  {:lifecycle/before-task-start inject-persist-ch})
 
 (def lifecycles
   [{:lifecycle/task :read-datoms
