@@ -16,6 +16,8 @@
 
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id] :as event} lifecycle]
+  (when-not (= 1 (:onyx/max-peers task-map))
+    (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
   (let [ch (chan (or (:datomic/read-buffer task-map) 1000))
         conn (d/connect (:datomic/uri task-map))
         db (d/as-of (d/db conn) (:datomic/t task-map))]
@@ -107,10 +109,10 @@
   {})
 
 (def read-datoms-calls
-  {:lifecycle/before-task inject-read-datoms-resources})
+  {:lifecycle/before-task-start inject-read-datoms-resources})
 
 (def write-tx-calls
-  {:lifecycle/before-task inject-write-tx-resources})
+  {:lifecycle/before-task-start inject-write-tx-resources})
 
 (def write-bulk-tx-calls
-  {:lifecycle/before-task inject-write-bulk-tx-resources})
+  {:lifecycle/before-task-start inject-write-bulk-tx-resources})
