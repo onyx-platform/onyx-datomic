@@ -7,7 +7,7 @@ Onyx plugin providing read and write facilities for batch processing a Datomic d
 In your project file:
 
 ```clojure
-[com.mdrogalis/onyx-datomic "0.6.0-beta1"]
+[org.onyxplatform/onyx-datomic "0.6.0"]
 ```
 
 In your peer boot-up namespace:
