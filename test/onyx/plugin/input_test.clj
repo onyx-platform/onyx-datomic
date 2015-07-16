@@ -83,7 +83,7 @@
 
 (def catalog
   [{:onyx/name :read-datoms
-    :onyx/ident :datomic/read-datoms
+    :onyx/plugin :onyx.plugin.datomic/read-datoms
     :onyx/type :input
     :onyx/medium :datomic
     :datomic/uri db-uri
@@ -103,7 +103,7 @@
     :onyx/doc "Queries for names of 5 characters or fewer"}
 
    {:onyx/name :persist
-    :onyx/ident :core.async/write-to-chan
+    :onyx/plugin :onyx.plugin.core-async/output
     :onyx/type :output
     :onyx/medium :core.async
     :onyx/batch-size 20

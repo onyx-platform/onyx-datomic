@@ -26,7 +26,7 @@ Catalog entry:
 
 ```clojure
 {:onyx/name :read-datoms
- :onyx/ident :datomic/read-datoms
+ :onyx/plugin :onyx.plugin.datomic/read-datoms
  :onyx/type :input
  :onyx/medium :datomic
  :datomic/uri db-uri
@@ -54,7 +54,7 @@ Catalog entry:
 
 ```clojure
 {:onyx/name :write-datoms
- :onyx/ident :datomic/commit-tx
+ :onyx/plugin :onyx.plugin.datomic/write-datoms
  :onyx/type :output
  :onyx/medium :datomic
  :datomic/uri db-uri
@@ -78,7 +78,7 @@ Catalog entry:
 
 ```clojure
 {:onyx/name :write-bulk-datoms
- :onyx/ident :datomic/commit-bulk-tx
+ :onyx/plugin :onyx.plugin.datomic/write-bulk-datoms
  :onyx/type :output
  :onyx/medium :datomic
  :datomic/uri db-uri

@@ -67,7 +67,7 @@
 
 (def catalog
   [{:onyx/name :in
-    :onyx/ident :core.async/read-from-chan
+    :onyx/plugin :onyx.plugin.core-async/input
     :onyx/type :input
     :onyx/medium :core.async
     :onyx/batch-size 1000
@@ -80,7 +80,7 @@
     :onyx/batch-size 2}
    
    {:onyx/name :out
-    :onyx/ident :datomic/commit-tx
+    :onyx/plugin :onyx.plugin.datomic/write-datoms
     :onyx/type :output
     :onyx/medium :datomic
     :datomic/uri db-uri
