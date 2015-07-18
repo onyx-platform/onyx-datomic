@@ -1,4 +1,5 @@
-(ns onyx.plugin.input-test
+(ns onyx.plugin.input-fault-tolerance-test
+  "Tests whether the plugin is fault tolerant. Won't make any progress if it restarts each time"
   (:require [clojure.core.async :refer [chan >!! <!!]]
             [onyx.plugin.core-async :refer [take-segments!]]
             [onyx.plugin.datomic]
@@ -17,7 +18,7 @@
 (def peer-config
   {:zookeeper/address "127.0.0.1:2188"
    :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
-   :onyx.messaging/impl :netty
+   :onyx.messaging/impl :aeron
    :onyx.messaging/peer-port-range [40200 40400]
    :onyx.messaging/peer-ports [40199]
    :onyx.messaging/bind-addr "localhost"
@@ -81,6 +82,9 @@
   [[:read-datoms :query]
    [:query :persist]])
 
+(defn restartable? [e]
+  true)
+
 (def catalog
   [{:onyx/name :read-datoms
     :onyx/plugin :onyx.plugin.datomic/read-datoms
@@ -90,13 +94,14 @@
     :datomic/t t
     :datomic/partition :com.mdrogalis/people
     :datomic/datoms-index :eavt
-    :datomic/datoms-per-segment 20
+    :datomic/datoms-per-segment 1
+    :onyx/restart-pred-fn :onyx.plugin.input-fault-tolerance-test/restartable?
     :onyx/max-peers 1
     :onyx/batch-size batch-size
     :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 
    {:onyx/name :query
-    :onyx/fn :onyx.plugin.input-test/my-test-query
+    :onyx/fn :onyx.plugin.input-fault-tolerance-test/my-test-query
     :onyx/type :function
     :onyx/consumption :concurrent
     :onyx/batch-size batch-size
@@ -116,21 +121,27 @@
 (def persist-calls
   {:lifecycle/before-task-start inject-persist-ch})
 
+(def batch-num (atom 0))
 
 (def read-datoms-crash
   {:lifecycle/before-batch (fn [event lifecycle]
-                             (when (zero? (rand-int 3))
+                             ; give the peer a bit of time to write
+                             ;; the chunks out and ack the batches
+                             (Thread/sleep 3000) 
+                             (when (zero? (mod (swap! batch-num inc) 3))
                                (throw (ex-info "Restartable" {:restartable? true}))))})
 
 (def lifecycles
   [{:lifecycle/task :read-datoms
     :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}
+   {:lifecycle/task :read-datoms
+    :lifecycle/calls :onyx.plugin.input-fault-tolerance-test/read-datoms-crash}
    {:lifecycle/task :persist
-    :lifecycle/calls :onyx.plugin.input-test/persist-calls}
+    :lifecycle/calls :onyx.plugin.input-fault-tolerance-test/persist-calls}
    {:lifecycle/task :persist
     :lifecycle/calls :onyx.plugin.core-async/writer-calls}])
 
-(def v-peers (onyx.api/start-peers 3 peer-group))
+(def v-peers (onyx.api/start-peers 4 peer-group))
 
 (onyx.api/submit-job
  peer-config
@@ -139,8 +150,8 @@
 
 (def results (take-segments! out-chan))
 
-(fact (set (mapcat #(apply concat %) (map :names results)))
-      => #{"Mike" "Benti" "Derek"})
+(fact (sort (mapcat #(apply concat %) (map :names results)))
+      => (sort ["Mike" "Benti" "Derek"]))
 
 (doseq [v-peer v-peers]
   (onyx.api/shutdown-peer v-peer))
