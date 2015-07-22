@@ -117,11 +117,6 @@
   {:lifecycle/before-task-start inject-persist-ch})
 
 
-(def read-datoms-crash
-  {:lifecycle/before-batch (fn [event lifecycle]
-                             (when (zero? (rand-int 3))
-                               (throw (ex-info "Restartable" {:restartable? true}))))})
-
 (def lifecycles
   [{:lifecycle/task :read-datoms
     :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}

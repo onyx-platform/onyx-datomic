@@ -24,25 +24,6 @@
    (:tx datom)
    (:added datom)])
 
-; (defn inject-read-datoms-resources
-;   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id] :as event} lifecycle]
-;   (when-not (= 1 (:onyx/max-peers task-map))
-;     (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
-;   (let [ch (:read-ch (:onyx.core/pipeline event))
-;         conn (d/connect (:datomic/uri task-map))
-;         db (d/as-of (d/db conn) (:datomic/t task-map))
-;         datoms-index (:datomic/datoms-index task-map)
-;         datoms-per-segment (:datomic/datoms-per-segment task-map)]
-;     (go
-;      (try
-;        (let [d-seq (d/datoms db datoms-index)]
-;          (doseq [datoms (partition-all datoms-per-segment d-seq)]
-;            (>!! ch {:datoms (map (partial unroll-datom db) datoms)})))
-;        (>!! ch :done)
-;        (catch Exception e
-;          (fatal e))))
-;     {}))
-
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
@@ -176,7 +157,7 @@
 
   (write-batch 
     [_ event]
-    (let [messages (mapcat :leaves #_:tree (:onyx.core/results event))]
+    (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
       @(d/transact conn
                    (map #(assoc % :db/id (d/tempid partition))
                         (map :message messages)))
@@ -201,7 +182,7 @@
   (write-batch 
     [_ event]
     ;; Transact each tx individually to avoid tempid conflicts.
-    (doseq [tx (mapcat :leaves #_:tree (:onyx.core/results event))]
+    (doseq [tx (mapcat :leaves (:tree (:onyx.core/results event)))]
       @(d/transact conn (:tx (:message tx))))
     {:onyx.core/written? true})
 
