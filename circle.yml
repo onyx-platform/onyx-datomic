@@ -7,13 +7,6 @@ machine:
   java:
     version: oraclejdk8
 
-dependencies:
-  pre:
-    - bash ./install-aeron.sh
-  cache_directories:
-    - Aeron
-    - Agrona
-
 notify:
   webhooks:
     # A list of hook hashes, containing the url field
