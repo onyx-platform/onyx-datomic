@@ -3,17 +3,10 @@
             [datomic.api :as d]
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.peer.function :as function]
-            ;[onyx.types :as t]
+            [onyx.types :as t]
             [onyx.static.default-vals :refer [defaults]]
             [onyx.extensions :as extensions]
             [taoensso.timbre :refer [info debug fatal]]))
-
-;; TODO: remove once 0.7.0 full has this
-(defn input [id message]
-  {:id id 
-   :message message})
-
-(defrecord DatomicMessage [id message chunk-index])
 
 (defn unroll-datom
   "Turns a datom into a vector of :eavt+op."
@@ -46,14 +39,12 @@
                    datoms (seq (drop num-ignored
                                      (d/datoms db datoms-index)))]
               (when datoms 
-                (>!! ch (->DatomicMessage (java.util.UUID/randomUUID)
-                                          {:datoms (map unroll (take datoms-per-segment datoms))} 
-                                          chunk-index))
+                (>!! ch (assoc (t/input (java.util.UUID/randomUUID)
+                                        {:datoms (map unroll (take datoms-per-segment datoms))})
+                               :chunk-index chunk-index))
                 (recur (inc chunk-index) 
                        (seq (drop datoms-per-segment datoms)))))
-            (>!! ch (->DatomicMessage (java.util.UUID/randomUUID) 
-                                      :done
-                                      nil))
+            (>!! ch (t/input (java.util.UUID/randomUUID) :done))
             (catch Exception e
               (fatal e))))
         {:datomic/read-ch ch
