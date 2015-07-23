@@ -91,24 +91,24 @@
 
   p-ext/PipelineInput
 
-  (ack-message [_ _ message-id]
-    (let [chunk-index (:chunk-index (@pending-messages message-id))]
+  (ack-segment [_ _ segment-id]
+    (let [chunk-index (:chunk-index (@pending-messages segment-id))]
       (swap! pending-chunk-indices disj chunk-index)
       (let [new-top-acked (highest-acked-chunk @top-acked-chunk-index @top-chunk-index @pending-chunk-indices)
             updated-content {:chunk-index new-top-acked :status :incomplete}]
         (extensions/force-write-chunk log :chunk updated-content task-id)
         (reset! top-acked-chunk-index new-top-acked))
-      (swap! pending-messages dissoc message-id)))
+      (swap! pending-messages dissoc segment-id)))
 
-  (retry-message 
-    [_ event message-id]
-    (when-let [msg (get @pending-messages message-id)]
+  (retry-segment 
+    [_ event segment-id]
+    (when-let [msg (get @pending-messages segment-id)]
       (>!! read-ch (assoc msg :id (java.util.UUID/randomUUID))))
-    (swap! pending-messages dissoc message-id))
+    (swap! pending-messages dissoc segment-id))
 
   (pending?
-    [_ _ message-id]
-    (get @pending-messages message-id))
+    [_ _ segment-id]
+    (get @pending-messages segment-id))
 
   (drained? 
     [_ _]
