@@ -30,6 +30,7 @@
             conn (d/connect (:datomic/uri task-map))
             db (d/as-of (d/db conn) (:datomic/t task-map))
             datoms-per-segment (:datomic/datoms-per-segment task-map)
+            datoms-components (or (:datomic/datoms-components task-map) [])
             unroll (partial unroll-datom db)
             num-ignored (* start-index datoms-per-segment)
             datoms-index (:datomic/datoms-index task-map)]
@@ -37,7 +38,7 @@
           (try
             (loop [chunk-index (inc start-index)
                    datoms (seq (drop num-ignored
-                                     (d/datoms db datoms-index)))]
+                                     (apply d/datoms db datoms-index datoms-components)))]
               (when datoms 
                 (>!! ch (assoc (t/input (java.util.UUID/randomUUID)
                                         {:datoms (map unroll (take datoms-per-segment datoms))})
