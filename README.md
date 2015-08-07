@@ -33,11 +33,15 @@ Catalog entry:
  :datomic/t t
  :datomic/partition :my.db/partition
  :datomic/datoms-index :eavt
+ :datomic/datoms-components []
  :datomic/datoms-per-segment 20
  :onyx/max-peers 1
  :onyx/batch-size batch-size
  :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 ```
+
+`:datomic/datoms-components` may be used to filter by a datomic index. See the 
+[Clojure Cookbook](https://www.github.com/clojure-cookbook/clojure-cookbook/blob/master/06_databases/6-15_traqversing-indices.asciidoc) for examples.
 
 Lifecycle entry:
 
