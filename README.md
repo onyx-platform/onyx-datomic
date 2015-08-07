@@ -31,7 +31,6 @@ Catalog entry:
  :onyx/medium :datomic
  :datomic/uri db-uri
  :datomic/t t
- :datomic/partition :my.db/partition
  :datomic/datoms-index :eavt
  :datomic/datoms-components []
  :datomic/datoms-per-segment 20

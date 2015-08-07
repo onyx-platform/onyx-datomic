@@ -88,7 +88,6 @@
     :onyx/medium :datomic
     :datomic/uri db-uri
     :datomic/t t
-    :datomic/partition :com.mdrogalis/people
     :datomic/datoms-index :eavt
     :datomic/datoms-per-segment 20
     :onyx/max-peers 1
