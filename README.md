@@ -64,7 +64,7 @@ Catalog entry:
  :datomic/t t
  :datomic/index-attribute :your-indexed-attribute
  :datomic/index-range-start "<<INDEX_START_VALUE>>"
- :datomic/index-range-end "<<INDEX_END_VALUE"
+ :datomic/index-range-end "<<INDEX_END_VALUE>>"
  :datomic/datoms-per-segment 20
  :onyx/max-peers 1
  :onyx/batch-size batch-size
