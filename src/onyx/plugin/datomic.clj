@@ -17,6 +17,18 @@
    (:tx datom)
    (:added datom)])
 
+(defn datoms-sequence [db task-map]
+  (case (:onyx/plugin task-map)
+    ::read-datoms
+    (let [datoms-components (or (:datomic/datoms-components task-map) [])
+          datoms-index (:datomic/datoms-index task-map)]
+      (apply d/datoms db datoms-index datoms-components))
+    ::read-index-range
+    (let [attribute (:datomic/index-attribute task-map)
+          range-start (:datomic/index-range-start task-map)
+          range-end (:datomic/index-range-end task-map)]
+      (d/index-range db attribute range-start range-end))))
+
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
@@ -30,15 +42,13 @@
             conn (d/connect (:datomic/uri task-map))
             db (d/as-of (d/db conn) (:datomic/t task-map))
             datoms-per-segment (:datomic/datoms-per-segment task-map)
-            datoms-components (or (:datomic/datoms-components task-map) [])
             unroll (partial unroll-datom db)
-            num-ignored (* start-index datoms-per-segment)
-            datoms-index (:datomic/datoms-index task-map)]
+            num-ignored (* start-index datoms-per-segment)]
         (go
           (try
             (loop [chunk-index (inc start-index)
                    datoms (seq (drop num-ignored
-                                     (apply d/datoms db datoms-index datoms-components)))]
+                                     (datoms-sequence db task-map)))]
               (when datoms 
                 (>!! ch (assoc (t/input (java.util.UUID/randomUUID)
                                         {:datoms (map unroll (take datoms-per-segment datoms))})
@@ -115,8 +125,7 @@
     [_ _]
     @drained?))
 
-
-(defn read-datoms [pipeline-data]
+(defn shared-input-builder [pipeline-data]
   (let [catalog-entry (:onyx.core/task-map pipeline-data)
         max-pending (or (:onyx/max-pending catalog-entry) (:onyx/max-pending defaults))
         batch-size (:onyx/batch-size catalog-entry)
@@ -132,6 +141,11 @@
                     (atom #{})
                     read-ch)))
 
+(defn read-datoms [pipeline-data]
+  (shared-input-builder pipeline-data))
+
+(defn read-index-range [pipeline-data]
+  (shared-input-builder pipeline-data))
 
 (defn inject-write-tx-resources
   [{:keys [onyx.core/pipeline]} lifecycle]
@@ -188,6 +202,9 @@
     (->DatomicWriteBulkDatoms conn)))
 
 (def read-datoms-calls
+  {:lifecycle/before-task-start inject-read-datoms-resources})
+
+(def read-index-range-calls
   {:lifecycle/before-task-start inject-read-datoms-resources})
 
 (def write-tx-calls

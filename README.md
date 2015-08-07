@@ -50,6 +50,35 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}
 ```
 
+##### read-index-range
+
+Reads datoms from an indexed attribute via `datomic.api/index-range`.
+
+Catalog entry:
+
+```clojure
+{:onyx/name :read-index-datoms
+ :onyx/plugin :onyx.plugin.datomic/read-index-range
+ :onyx/type :input
+ :onyx/medium :datomic
+ :datomic/uri db-uri
+ :datomic/t t
+ :datomic/index-attribute :your-indexed-attribute
+ :datomic/index-range-start "<<INDEX_START_VALUE>>"
+ :datomic/index-range-end "<<INDEX_END_VALUE"
+ :datomic/datoms-per-segment 20
+ :onyx/max-peers 1
+ :onyx/batch-size batch-size
+ :onyx/doc "Reads a range of datoms from the d/index-range API"}
+```
+
+Lifecycle entry:
+
+```clojure
+{:lifecycle/task :read-index-datoms
+ :lifecycle/calls :onyx.plugin.datomic/read-index-range-calls}
+```
+
 ##### commit-tx
 
 Writes new entity maps and will automatically assign tempid's for the partition.
