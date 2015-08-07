@@ -41,7 +41,7 @@ Catalog entry:
 ```
 
 `:datomic/datoms-components` may be used to filter by a datomic index. See the 
-[Clojure Cookbook](https://www.github.com/clojure-cookbook/clojure-cookbook/blob/master/06_databases/6-15_traqversing-indices.asciidoc) for examples.
+[Clojure Cookbook](https://github.com/clojure-cookbook/clojure-cookbook/blob/master/06_databases/6-15_traversing-indices.asciidoc) for examples.
 
 Lifecycle entry:
 
