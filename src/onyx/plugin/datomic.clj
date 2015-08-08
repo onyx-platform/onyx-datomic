@@ -179,7 +179,7 @@
     [_ event]
     (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
       @(d/transact conn
-                   (map (fn [msg] (if (and partition (associative? msg)) 
+                   (map (fn [msg] (if (and partition (not (sequential? msg))) 
                                     (assoc msg :db/id (d/tempid partition))
                                     msg))
                         (map :message messages)))
