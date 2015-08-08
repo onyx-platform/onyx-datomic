@@ -29,6 +29,20 @@
           range-end (:datomic/index-range-end task-map)]
       (d/index-range db attribute range-start range-end))))
 
+(defn safe-connect [task-map]
+  (if-let [uri (:datomic/uri task-map)] 
+    (d/connect uri)
+    (throw (ex-info ":datomic/uri missing from write-datoms task-map." task-map))))
+
+(defn safe-as-of [task-map conn]
+  (if-let [t (:datomic/t task-map)]
+    (d/as-of (d/db conn) t)
+    (throw (ex-info ":datomic/t missing from write-datoms task-map." task-map))))
+
+(defn safe-datoms-per-segment [task-map]
+  (or (:datomic/datoms-per-segment task-map)
+      (throw (ex-info ":datomic/datoms-per-segment missing from write-datoms task-map." task-map))))
+
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
@@ -39,9 +53,9 @@
       (throw (Exception. "Restarted task and it was already complete. This is currently unhandled."))
       (let [ch (:read-ch pipeline)
             start-index (:chunk-index content)
-            conn (d/connect (:datomic/uri task-map))
-            db (d/as-of (d/db conn) (:datomic/t task-map))
-            datoms-per-segment (:datomic/datoms-per-segment task-map)
+            conn (safe-connect task-map)
+            db (safe-as-of task-map conn)
+            datoms-per-segment (safe-datoms-per-segment task-map)
             unroll (partial unroll-datom db)
             num-ignored (* start-index datoms-per-segment)]
         (go
@@ -165,7 +179,7 @@
     [_ event]
     (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
       @(d/transact conn
-                   (map (fn [msg] (if (and partition (keyword? msg)) 
+                   (map (fn [msg] (if (and partition (associative? msg)) 
                                     (assoc msg :db/id (d/tempid partition))
                                     msg))
                         (map :message messages)))
@@ -177,7 +191,7 @@
 
 (defn write-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
-        conn (d/connect (:datomic/uri task-map))
+        conn (safe-connect task-map) 
         partition (:datomic/partition task-map)] 
     (->DatomicWriteDatoms conn partition)))
 
@@ -200,7 +214,7 @@
 
 (defn write-bulk-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
-        conn (d/connect (:datomic/uri task-map))] 
+        conn (safe-connect task-map)] 
     (->DatomicWriteBulkDatoms conn)))
 
 (def read-datoms-calls
