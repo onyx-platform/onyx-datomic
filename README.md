@@ -63,8 +63,8 @@ Catalog entry:
  :datomic/uri db-uri
  :datomic/t t
  :datomic/index-attribute :your-indexed-attribute
- :datomic/index-range-start "<<INDEX_START_VALUE>>"
- :datomic/index-range-end "<<INDEX_END_VALUE>>"
+ :datomic/index-range-start <<INDEX_START_VALUE>>
+ :datomic/index-range-end <<INDEX_END_VALUE>>
  :datomic/datoms-per-segment 20
  :onyx/max-peers 1
  :onyx/batch-size batch-size
@@ -80,7 +80,8 @@ Lifecycle entry:
 
 ##### commit-tx
 
-Writes new entity maps and will automatically assign tempid's for the partition.
+Writes new entity maps to datomic. Will automatically assign tempid's for the partition
+if a value for :datomic/partition is supplied and datomic transaction data is in map form.
 
 Catalog entry:
 
@@ -90,7 +91,7 @@ Catalog entry:
  :onyx/type :output
  :onyx/medium :datomic
  :datomic/uri db-uri
- :datomic/partition :my.database/partition
+ :datomic/partition :my.database/optional-partition-name
  :onyx/batch-size batch-size
  :onyx/doc "Transacts segments to storage"}
 ```

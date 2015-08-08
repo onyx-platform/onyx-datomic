@@ -165,7 +165,9 @@
     [_ event]
     (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
       @(d/transact conn
-                   (map #(assoc % :db/id (d/tempid partition))
+                   (map (fn [msg] (if (and partition (keyword? msg)) 
+                                    (assoc msg :db/id (d/tempid partition))
+                                    msg))
                         (map :message messages)))
       {:onyx.core/written? true}))
 
