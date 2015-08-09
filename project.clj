@@ -1,4 +1,4 @@
-(defproject org.onyxplatform/onyx-datomic "0.7.0.4-SNAPSHOT"
+(defproject org.onyxplatform/onyx-datomic "0.7.0.4"
   :description "Onyx plugin for Datomic"
   :url "https://github.com/MichaelDrogalis/onyx-datomic"
   :license {:name "Eclipse Public License"
