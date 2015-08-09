@@ -145,6 +145,37 @@ Lifecycle entry:
 |`:datomic/datoms-per-segment` | `integer` | The number of datoms to compress into a single segment
 |`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
 
+##### Datomic Params Injection via Lifecycles
+
+The datomic params lifecycles inject datomic dbs or conns into `:onyx/fn` params.
+
+###### inject-conn
+
+Injects a datomic conn into the event map. Will also inject as an :onyx/fn param if :onyx/param? is true.
+
+```clojure
+{:lifecycle/task :use-conn-task
+ :lifecycle/calls :onyx.plugin.datomic/inject-conn-calls
+ :datomic/db-uri db-uri
+ :onyx/param? true
+ :lifecycle/doc "Initialises datomic conn as a :onyx.core/param"}
+```
+
+###### inject-db
+
+Injects a datomic db into the event map. Will also inject as an :onyx/fn param if :onyx/param? is true.
+
+`:datomic/basis-t` is optional, and if supplied it calls datomic.api/as-of on the db using `:datomic/basis-t`.
+
+```clojure
+{:lifecycle/task :use-db-task
+ :lifecycle/calls :onyx.plugin.datomic/inject-db-calls
+ :datomic/db-uri db-uri
+ :datomic/basis-t optional-basis-t
+ :onyx/param? true
+ :lifecycle/doc "Initialises datomic db as a :onyx.core/param"}
+```
+
 #### Contributing
 
 Pull requests into the master branch are welcomed.
