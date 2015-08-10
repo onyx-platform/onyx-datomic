@@ -156,7 +156,7 @@ Injects a datomic conn into the event map. Will also inject as an :onyx/fn param
 ```clojure
 {:lifecycle/task :use-conn-task
  :lifecycle/calls :onyx.plugin.datomic/inject-conn-calls
- :datomic/db-uri db-uri
+ :datomic/uri db-uri
  :onyx/param? true
  :lifecycle/doc "Initialises datomic conn as a :onyx.core/param"}
 ```
@@ -170,7 +170,7 @@ Injects a datomic db into the event map. Will also inject as an :onyx/fn param i
 ```clojure
 {:lifecycle/task :use-db-task
  :lifecycle/calls :onyx.plugin.datomic/inject-db-calls
- :datomic/db-uri db-uri
+ :datomic/uri db-uri
  :datomic/basis-t optional-basis-t
  :onyx/param? true
  :lifecycle/doc "Initialises datomic db as a :onyx.core/param"}

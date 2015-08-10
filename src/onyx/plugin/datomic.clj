@@ -231,10 +231,10 @@
 
 ;;; params lifecycles
 
-(defn inject-db [{:keys [onyx.core/params] :as event} {:keys [datomic/basis-t datomic/db-uri onyx/param?] :as lifecycle}]
-  (when-not db-uri
+(defn inject-db [{:keys [onyx.core/params] :as event} {:keys [datomic/basis-t datomic/uri onyx/param?] :as lifecycle}]
+  (when-not uri
     (throw (ex-info "Missing :datomic/uri in inject-db-calls lifecycle." lifecycle)))
-  (let [conn (d/connect (:datomic/db-uri lifecycle))
+  (let [conn (d/connect (:datomic/uri lifecycle))
         db (cond-> (d/db conn)
              basis-t (d/as-of basis-t))]
     {:datomic/conn conn
@@ -246,11 +246,11 @@
 (def inject-db-calls
   {:lifecycle/before-task-start inject-db})
 
-(defn inject-conn [{:keys [onyx.core/params] :as event} {:keys [datomic/db-uri onyx/param?] :as lifecycle}]
-  (when-not db-uri
+(defn inject-conn [{:keys [onyx.core/params] :as event} {:keys [datomic/uri onyx/param?] :as lifecycle}]
+  (when-not uri
     (throw (ex-info "Missing :datomic/uri in inject-conn-calls lifecycle."
                     lifecycle)))
-  (let [conn (d/connect db-uri)] 
+  (let [conn (d/connect uri)] 
     {:datomic/conn conn
      :onyx.core/params (if param? 
                          (conj params conn)
