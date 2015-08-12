@@ -1,5 +1,5 @@
 (ns onyx.plugin.datomic
-  (:require [clojure.core.async :refer [chan >! >!! <!! close! go timeout alts!!]]
+  (:require [clojure.core.async :refer [chan >! >!! <!! close! thread timeout alts!! go-loop sliding-buffer]]
             [datomic.api :as d]
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.peer.function :as function]
@@ -43,6 +43,18 @@
   (or (:datomic/datoms-per-segment task-map)
       (throw (ex-info ":datomic/datoms-per-segment missing from write-datoms task-map." task-map))))
 
+(defn close-read-datoms-resources 
+  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
+  (close! read-ch)
+  (close! commit-ch)
+  (close! producer-ch))
+
+(defn start-commit-loop! [commit-ch log task-id]
+  (go-loop []
+           (when-let [content (<!! commit-ch)] 
+             (extensions/force-write-chunk log :chunk content task-id)
+             (recur))))
+
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
@@ -57,22 +69,27 @@
             db (safe-as-of task-map conn)
             datoms-per-segment (safe-datoms-per-segment task-map)
             unroll (partial unroll-datom db)
-            num-ignored (* start-index datoms-per-segment)]
-        (go
-          (try
-            (loop [chunk-index (inc start-index)
-                   datoms (seq (drop num-ignored
-                                     (datoms-sequence db task-map)))]
-              (when datoms 
-                (>!! ch (assoc (t/input (java.util.UUID/randomUUID)
-                                        {:datoms (map unroll (take datoms-per-segment datoms))})
-                               :chunk-index chunk-index))
-                (recur (inc chunk-index) 
-                       (seq (drop datoms-per-segment datoms)))))
-            (>!! ch (t/input (java.util.UUID/randomUUID) :done))
-            (catch Exception e
-              (fatal e))))
+            num-ignored (* start-index datoms-per-segment)
+            commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log task-id)
+            producer-ch (thread
+                          (try
+                            (loop [chunk-index (inc start-index)
+                                   datoms (seq (drop num-ignored
+                                                     (datoms-sequence db task-map)))]
+                              (when datoms 
+                                (let [success? (>!! ch (assoc (t/input (java.util.UUID/randomUUID)
+                                                                       {:datoms (map unroll (take datoms-per-segment datoms))})
+                                                              :chunk-index chunk-index))] 
+                                  (if success?
+                                    (recur (inc chunk-index) 
+                                           (seq (drop datoms-per-segment datoms)))))))
+                            (>!! ch (t/input (java.util.UUID/randomUUID) :done))
+                            (catch Exception e
+                              (fatal e))))]
+        
         {:datomic/read-ch ch
+         :datomic/commit-ch (:commit-ch pipeline)
+         :datomic/producer-ch producer-ch
          :datomic/drained? (:drained pipeline)
          :datomic/top-chunk-index (:top-chunk-index pipeline)
          :datomic/top-acked-chunk-index (:top-acked-chunk-index pipeline)
@@ -89,7 +106,7 @@
 (defrecord DatomicInput [log task-id max-pending batch-size batch-timeout 
                          pending-messages drained?
                          top-chunk-index top-acked-chunk-index pending-chunk-indices 
-                         read-ch]
+                         read-ch commit-ch]
   p-ext/Pipeline
   (write-batch 
     [this event]
@@ -110,7 +127,7 @@
     (when (and (= 1 (count @pending-messages))
                (= (count batch) 1)
                (= (:message (first batch)) :done))
-      (extensions/force-write-chunk log :chunk {:status :complete} task-id)
+      (>!! commit-ch {:status :complete}) 
       (reset! drained? true))
     {:onyx.core/batch batch}))
 
@@ -119,9 +136,8 @@
   (ack-segment [_ _ segment-id]
     (let [chunk-index (:chunk-index (@pending-messages segment-id))]
       (swap! pending-chunk-indices disj chunk-index)
-      (let [new-top-acked (highest-acked-chunk @top-acked-chunk-index @top-chunk-index @pending-chunk-indices)
-            updated-content {:chunk-index new-top-acked :status :incomplete}]
-        (extensions/force-write-chunk log :chunk updated-content task-id)
+      (let [new-top-acked (highest-acked-chunk @top-acked-chunk-index @top-chunk-index @pending-chunk-indices)]
+        (>!! commit-ch {:chunk-index new-top-acked :status :incomplete})
         (reset! top-acked-chunk-index new-top-acked))
       (swap! pending-messages dissoc segment-id)))
 
@@ -144,7 +160,8 @@
         max-pending (or (:onyx/max-pending catalog-entry) (:onyx/max-pending defaults))
         batch-size (:onyx/batch-size catalog-entry)
         batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
-        read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))] 
+        read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
+        commit-ch (chan (sliding-buffer 1))] 
     (->DatomicInput (:onyx.core/log pipeline-data)
                     (:onyx.core/task-id pipeline-data)
                     max-pending batch-size batch-timeout 
@@ -153,7 +170,8 @@
                     (atom -1)
                     (atom -1)
                     (atom #{})
-                    read-ch)))
+                    read-ch
+                    commit-ch)))
 
 (defn read-datoms [pipeline-data]
   (shared-input-builder pipeline-data))
@@ -218,10 +236,12 @@
     (->DatomicWriteBulkDatoms conn)))
 
 (def read-datoms-calls
-  {:lifecycle/before-task-start inject-read-datoms-resources})
+  {:lifecycle/before-task-start inject-read-datoms-resources
+   :lifecycle/after-task-stop close-read-datoms-resources})
 
 (def read-index-range-calls
-  {:lifecycle/before-task-start inject-read-datoms-resources})
+  {:lifecycle/before-task-start inject-read-datoms-resources
+   :lifecycle/after-task-stop close-read-datoms-resources})
 
 (def write-tx-calls
   {:lifecycle/before-task-start inject-write-tx-resources})
