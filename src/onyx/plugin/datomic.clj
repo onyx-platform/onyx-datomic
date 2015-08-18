@@ -205,7 +205,7 @@
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
-    (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
+    (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
@@ -226,7 +226,7 @@
                                                       :data (partial map unroll-log-datom)))))
                               (let [last-t (:t (last entries))
                                     next-t (inc last-t)] 
-                                (if (not= last-t max-tx)
+                                (if (< last-t max-tx)
                                   (recur next-t))))
                             ;; timeout could be used to backoff here
                             ;; when no entries are read

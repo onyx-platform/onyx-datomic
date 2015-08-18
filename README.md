@@ -105,6 +105,8 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/read-log-calls}
 ```
 
+Task will emit a sentinel `:done` when it reaches the tx log-end-tx.
+
 ##### commit-tx
 
 Writes new entity maps to datomic. Will automatically assign tempid's for the partition
