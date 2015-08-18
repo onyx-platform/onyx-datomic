@@ -206,8 +206,8 @@
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
     (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
-  (let [start-tx (or (:datomic/log-start-tx task-map) 0)
-        max-tx (or (:datomic/log-end-tx task-map) Integer/MAX_VALUE)
+  (let [start-tx (:datomic/log-start-tx task-map)
+        max-tx (:datomic/log-end-tx task-map)
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
         ch (:read-ch pipeline)
         conn (safe-connect task-map)
