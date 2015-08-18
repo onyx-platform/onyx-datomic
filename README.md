@@ -78,6 +78,33 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/read-index-range-calls}
 ```
 
+##### read-log
+
+Reads the transaction log via d/tx-range. Will continue to read from log as datoms are added
+to the database.
+
+Catalog entry:
+
+```clojure
+{:onyx/name :read-log
+ :onyx/plugin :onyx.plugin.datomic/read-log
+ :onyx/type :input
+ :onyx/medium :datomic
+ :datomic/uri db-uri
+ :datomic/log-start-tx <<OPTIONAL_TX_START_INDEX>>
+ :datomic/log-end-tx <<OPTIONAL_TX_END_INDEX>>
+ :onyx/max-peers 1
+ :onyx/batch-size batch-size
+ :onyx/doc "Reads a sequence of datoms from the d/log API"}
+```
+
+Lifecycle entry:
+
+```clojure
+{:lifecycle/task :read-log
+ :lifecycle/calls :onyx.plugin.datomic/read-log-calls}
+```
+
 ##### commit-tx
 
 Writes new entity maps to datomic. Will automatically assign tempid's for the partition
