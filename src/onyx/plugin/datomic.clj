@@ -214,6 +214,8 @@
         producer-ch (thread
                       (try
                         (loop [tx-index start-tx]
+                          ;; tx-range called up to maximum tx in each iteration
+                          ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
                           (if-let [entries (seq 
                                              (take read-size 
                                                    (seq 
