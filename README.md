@@ -105,7 +105,10 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/read-log-calls}
 ```
 
-Task will emit a sentinel `:done` when it reaches the tx log-end-tx.
+Task will emit a sentinel `:done` when it reaches the tx log-end-tx. Note, when
+using :datomic/log-end-tx, the transaction id must eventually exist in order for
+the sentinel to be output. This is because log-end-tx is used as an argument to
+tx-range-log, and thus no greater tx will ever be read.
 
 ##### commit-tx
 
