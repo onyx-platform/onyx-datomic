@@ -218,15 +218,16 @@
                                              (take read-size 
                                                    (seq 
                                                      (d/tx-range (d/log conn) tx-index max-tx))))] 
-                            (doseq [entry entries]
-                              (>!! ch 
-                                   (t/input (java.util.UUID/randomUUID)
-                                            (update (into {} entry)
-                                                    :data (partial map unroll-log-datom)))))
-                            (let [last-t (:t (last entries))
-                                  next-t (inc last-t)] 
-                              (if (not= last-t max-tx)
-                                (recur next-t)))
+                            (do 
+                              (doseq [entry entries]
+                                (>!! ch 
+                                     (t/input (java.util.UUID/randomUUID)
+                                              (update (into {} entry)
+                                                      :data (partial map unroll-log-datom)))))
+                              (let [last-t (:t (last entries))
+                                    next-t (inc last-t)] 
+                                (if (not= last-t max-tx)
+                                  (recur next-t))))
                             ;; timeout could be used to backoff here
                             ;; when no entries are read
                             (recur tx-index)))
