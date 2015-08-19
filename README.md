@@ -110,6 +110,8 @@ using :datomic/log-end-tx, the transaction id must eventually exist in order for
 the sentinel to be output. This is because log-end-tx is used as an argument to
 tx-range-log, and thus no greater tx will ever be read.
 
+Segments will be read in the form `{:t tx-id :data [[e a v t added] [e a v t added]]}`.
+
 ##### commit-tx
 
 Writes new entity maps to datomic. Will automatically assign tempid's for the partition
