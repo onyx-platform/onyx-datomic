@@ -28,7 +28,7 @@
 
 (def peer-group (onyx.api/start-peer-group peer-config))
 
-(def db-uri (str "datomic:free://" (slurp "eth0.ip") ":4334/" (java.util.UUID/randomUUID)))
+(def db-uri (str "datomic:free://" (butlast (slurp "eth0.ip")) ":4334/" (java.util.UUID/randomUUID)))
 
 (def schema
   [{:db/id #db/id [:db.part/db]
