@@ -135,10 +135,16 @@
 
 (def results (take-segments! out-chan))
 
+(type #inst "2015-08-19T13:27:59.256-00:00")
+
 (fact (map (fn [result]
              (if (= result :done)
                :done
-               (dissoc result :id))) results) 
+               ;; drop tx datom and id
+               (-> result 
+                   (update :data rest)
+                   (dissoc :id)))) 
+           results) 
       => 
       [{:data '([13194139534312 50 #inst "2015-08-19T13:27:59.237-00:00" 13194139534312 true] 
                 [63 10 :com.mdrogalis/people 13194139534312 true] 
