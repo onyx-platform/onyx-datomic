@@ -221,7 +221,8 @@
                                              (take read-size 
                                                    (seq 
                                                      (d/tx-range (d/log conn) tx-index nil))))]
-                            (do 
+                            (let [last-t (:t (last entries))
+                                  next-t (inc last-t)] 
                               (doseq [entry (filter #(or (nil? max-tx)  
                                                          (< (:t %) max-tx)) 
                                                     entries)]
@@ -229,13 +230,12 @@
                                      (t/input (java.util.UUID/randomUUID)
                                               (update (into {} entry)
                                                       :data (partial map unroll-log-datom)))))
-                              (let [last-t (:t (last entries))
-                                    next-t (inc last-t)] 
-                                (if (or (nil? max-tx) 
-                                        (< last-t max-tx))
-                                  (recur next-t))))
-                            ;; timeout could be used to backoff here
-                            ;; when no entries are read
+
+
+                              (if (or (nil? max-tx) 
+                                      (< last-t max-tx))
+                                (recur next-t)))
+                            ;; timeout could be used to backoff here when no entries are read
                             (recur tx-index)))
                         (>!! ch (t/input (java.util.UUID/randomUUID) :done))
                         (catch Exception e
