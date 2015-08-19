@@ -229,9 +229,8 @@
                                 (>!! ch 
                                      (t/input (java.util.UUID/randomUUID)
                                               (update (into {} entry)
-                                                      :data (partial map unroll-log-datom)))))
-
-
+                                                      :data 
+                                                      (partial map unroll-log-datom)))))
                               (if (or (nil? max-tx) 
                                       (< last-t max-tx))
                                 (recur next-t)))

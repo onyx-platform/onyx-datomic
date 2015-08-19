@@ -6,7 +6,6 @@
             [midje.sweet :refer :all]
             [datomic.api :as d]))
 
-
 ;; NEED TO ADD A TEST SELECTOR SO THIS TEST ONLY RUNS ON CIRCLE CI
 
 (def id (java.util.UUID/randomUUID))
@@ -32,7 +31,6 @@
 (def peer-group (onyx.api/start-peer-group peer-config))
 
 (def db-uri (str "datomic:free://" 
-                 ;"127.0.0.1"
                  (apply str (butlast (slurp "eth0.ip"))) 
                  ":4334/" 
                  (java.util.UUID/randomUUID)))
@@ -137,8 +135,11 @@
 
 (def results (take-segments! out-chan))
 
-;; dissoc ids from here
-(fact results => 
+(fact (map (fn [result]
+             (if (= result :done)
+               :done
+               (dissoc result :id))) results) 
+      => 
       [{:data '([13194139534312 50 #inst "2015-08-19T13:27:59.237-00:00" 13194139534312 true] 
                 [63 10 :com.mdrogalis/people 13194139534312 true] 
                 [0 11 63 13194139534312 true] 
@@ -146,7 +147,6 @@
                 [64 40 23 13194139534312 true] 
                 [64 41 35 13194139534312 true] 
                 [0 13 64 13194139534312 true]), 
-        ;:id #uuid "55d48473-e6a9-4c58-a093-706b95cac383", 
         :t 1000} 
        {:data '([13194139534313 50 #inst "2015-08-19T13:27:59.256-00:00" 13194139534313 true] 
                 [277076930200554 64 "Mike" 13194139534313 true] 
@@ -154,7 +154,6 @@
                 [277076930200556 64 "Benti" 13194139534313 true] 
                 [277076930200557 64 "Derek" 13194139534313 true] 
                 [277076930200558 64 "Kristen" 13194139534313 true]), 
-        ;:id #uuid "55d48473-8c98-4955-a865-174cf89c6606", 
         :t 1001} 
        :done])
 
