@@ -216,19 +216,23 @@
                         (loop [tx-index start-tx]
                           ;; tx-range called up to maximum tx in each iteration
                           ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
+                          ;; use a nil end-tx, and rely on removing higher tx values
                           (if-let [entries (seq 
                                              (take read-size 
                                                    (seq 
-                                                     (d/tx-range (d/log conn) tx-index max-tx))))] 
+                                                     (d/tx-range (d/log conn) tx-index nil))))]
                             (do 
-                              (doseq [entry entries]
+                              (doseq [entry (filter #(or (nil? max-tx)  
+                                                         (< (:t %) max-tx)) 
+                                                    entries)]
                                 (>!! ch 
                                      (t/input (java.util.UUID/randomUUID)
                                               (update (into {} entry)
                                                       :data (partial map unroll-log-datom)))))
                               (let [last-t (:t (last entries))
                                     next-t (inc last-t)] 
-                                (if (< last-t max-tx)
+                                (if (or (nil? max-tx) 
+                                        (< last-t max-tx))
                                   (recur next-t))))
                             ;; timeout could be used to backoff here
                             ;; when no entries are read
