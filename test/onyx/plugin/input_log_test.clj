@@ -6,6 +6,9 @@
             [midje.sweet :refer :all]
             [datomic.api :as d]))
 
+
+;; NEED TO ADD A TEST SELECTOR SO THIS TEST ONLY RUNS ON CIRCLE CI
+
 (def id (java.util.UUID/randomUUID))
 
 (def env-config
@@ -29,6 +32,7 @@
 (def peer-group (onyx.api/start-peer-group peer-config))
 
 (def db-uri (str "datomic:free://" 
+                 ;"127.0.0.1"
                  (apply str (butlast (slurp "eth0.ip"))) 
                  ":4334/" 
                  (java.util.UUID/randomUUID)))
@@ -72,37 +76,19 @@
 
 (def out-chan (chan 1000))
 
-(def query '[:find ?a :where
-             [?e :user/name ?a]
-             [(count ?a) ?x]
-             [(<= ?x 5)]])
-
-(defn my-test-query [{:keys [datoms] :as segment}]
-  {:names (d/q query datoms)})
-
 (def workflow
-  [[:read-datoms :query]
-   [:query :persist]])
+  [[:read-log :persist]])
 
 (def catalog
-  [{:onyx/name :read-datoms
-    :onyx/plugin :onyx.plugin.datomic/read-datoms
+  [{:onyx/name :read-log
+    :onyx/plugin :onyx.plugin.datomic/read-log
     :onyx/type :input
     :onyx/medium :datomic
     :datomic/uri db-uri
-    :datomic/t t
-    :datomic/datoms-index :eavt
-    :datomic/datoms-per-segment 20
     :onyx/max-peers 1
+    :datomic/log-end-tx 1006
     :onyx/batch-size batch-size
-    :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
-
-   {:onyx/name :query
-    :onyx/fn ::my-test-query
-    :onyx/type :function
-    :onyx/consumption :concurrent
-    :onyx/batch-size batch-size
-    :onyx/doc "Queries for names of 5 characters or fewer"}
+    :onyx/doc "Reads a sequence of datoms from the d/tx-range API"}
 
    {:onyx/name :persist
     :onyx/plugin :onyx.plugin.core-async/output
@@ -118,10 +104,9 @@
 (def persist-calls
   {:lifecycle/before-task-start inject-persist-ch})
 
-
 (def lifecycles
-  [{:lifecycle/task :read-datoms
-    :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}
+  [{:lifecycle/task :read-log
+    :lifecycle/calls :onyx.plugin.datomic/read-log-calls}
    {:lifecycle/task :persist
     :lifecycle/calls ::persist-calls}
    {:lifecycle/task :persist
@@ -134,10 +119,44 @@
  {:catalog catalog :workflow workflow :lifecycles lifecycles
   :task-scheduler :onyx.task-scheduler/balanced})
 
+(Thread/sleep 15)
+
+(def people2
+  [{:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Mike2"}
+   {:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Dorrene2"}
+   {:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Benti2"}
+   {:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Derek2"}
+   {:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Kristen2"}])
+
+@(d/transact conn people2)
+
 (def results (take-segments! out-chan))
 
-(fact (set (mapcat #(apply concat %) (map :names results)))
-      => #{"Mike" "Benti" "Derek"})
+;; dissoc ids from here
+(fact results => 
+      [{:data '([13194139534312 50 #inst "2015-08-19T13:27:59.237-00:00" 13194139534312 true] 
+                [63 10 :com.mdrogalis/people 13194139534312 true] 
+                [0 11 63 13194139534312 true] 
+                [64 10 :user/name 13194139534312 true] 
+                [64 40 23 13194139534312 true] 
+                [64 41 35 13194139534312 true] 
+                [0 13 64 13194139534312 true]), 
+        ;:id #uuid "55d48473-e6a9-4c58-a093-706b95cac383", 
+        :t 1000} 
+       {:data '([13194139534313 50 #inst "2015-08-19T13:27:59.256-00:00" 13194139534313 true] 
+                [277076930200554 64 "Mike" 13194139534313 true] 
+                [277076930200555 64 "Dorrene" 13194139534313 true] 
+                [277076930200556 64 "Benti" 13194139534313 true] 
+                [277076930200557 64 "Derek" 13194139534313 true] 
+                [277076930200558 64 "Kristen" 13194139534313 true]), 
+        ;:id #uuid "55d48473-8c98-4955-a865-174cf89c6606", 
+        :t 1001} 
+       :done])
 
 (doseq [v-peer v-peers]
   (onyx.api/shutdown-peer v-peer))
