@@ -202,6 +202,7 @@
   (close! commit-ch)
   (close! producer-ch))
 
+
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))

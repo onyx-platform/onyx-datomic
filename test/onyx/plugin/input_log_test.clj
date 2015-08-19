@@ -119,23 +119,11 @@
 
 (Thread/sleep 15)
 
-(def people2
-  [{:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Mike2"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Dorrene2"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Benti2"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Derek2"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Kristen2"}])
+@(d/transact conn people)
+@(d/transact conn people)
 
-@(d/transact conn people2)
 
 (def results (take-segments! out-chan))
-
-(type #inst "2015-08-19T13:27:59.256-00:00")
 
 (fact (map (fn [result]
              (if (= result :done)
@@ -152,14 +140,14 @@
                 [64 10 :user/name 13194139534312 true] 
                 [64 40 23 13194139534312 true] 
                 [64 41 35 13194139534312 true] 
-                [0 13 64 13194139534312 true]), 
+                [0 13 64 13194139534312 true])
         :t 1000} 
        {:data '(;[13194139534313 50 #inst "2015-08-19T13:27:59.256-00:00" 13194139534313 true] 
                 [277076930200554 64 "Mike" 13194139534313 true] 
                 [277076930200555 64 "Dorrene" 13194139534313 true] 
                 [277076930200556 64 "Benti" 13194139534313 true] 
                 [277076930200557 64 "Derek" 13194139534313 true] 
-                [277076930200558 64 "Kristen" 13194139534313 true]), 
+                [277076930200558 64 "Kristen" 13194139534313 true])
         :t 1001} 
        :done])
 
