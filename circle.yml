@@ -1,7 +1,7 @@
 dependencies:
   override:
     - docker run -d -p 4334-4336:4334-4336 -e ALT_HOST=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}') --name datomic-free akiel/datomic-free
-    - /sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}' > eth0.ip
+    - ./output_ip.sh
 
 test:
   override:
