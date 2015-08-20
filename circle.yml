@@ -1,11 +1,17 @@
+dependencies:
+  override:
+    - ./start_datomic.sh
+
 test:
   override:
     - lein with-profile dev,circle-ci midje:
-        timeout: 240 
+        timeout: 480 
 
 machine:
   java:
     version: oraclejdk8
+  services:
+    - docker
 
 notify:
   webhooks:
