@@ -210,11 +210,13 @@
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
+        batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
+        initial-backoff 1
         ch (:read-ch pipeline)
         conn (safe-connect task-map)
         producer-ch (thread
                       (try
-                        (loop [tx-index start-tx]
+                        (loop [tx-index start-tx backoff initial-backoff]
                           ;; tx-range called up to maximum tx in each iteration
                           ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
                           ;; use a nil end-tx, and rely on removing higher tx values
@@ -234,9 +236,10 @@
                                                       (partial map unroll-log-datom)))))
                               (if (or (nil? max-tx) 
                                       (< last-t max-tx))
-                                (recur next-t)))
-                            ;; timeout could be used to backoff here when no entries are read
-                            (recur tx-index)))
+                                (recur next-t initial-backoff)))
+                            (let [next-backoff (min (* 2 backoff) batch-timeout)]
+                              (Thread/sleep backoff)
+                              (recur tx-index next-backoff))))
                         (>!! ch (t/input (java.util.UUID/randomUUID) :done))
                         (catch Exception e
                           (fatal e))))]
