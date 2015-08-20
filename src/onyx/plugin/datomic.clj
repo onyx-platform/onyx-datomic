@@ -210,7 +210,7 @@
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
-        batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
+        batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout defaults))
         initial-backoff 1
         ch (:read-ch pipeline)
         conn (safe-connect task-map)
