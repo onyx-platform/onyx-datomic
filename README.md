@@ -49,6 +49,18 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}
 ```
 
+###### Attributes
+
+| key                          | type      | description
+|------------------------------|-----------|------------
+|`:datomic/uri`                | `string`  | The URI of the datomic database to connect to
+|`:datomic/t`                  | `integer` | The t-value of the database to read from
+|`:datomic/datoms-index`       | `keyword` | datomic index to use in datomic.api/datoms call
+|`:datomic/datoms-components`  | `keyword` | components of the datomic index to use (see datomic.api/datoms documentation)
+|`:datomic/datoms-per-segment` | `integer` | The number of datoms to compress into a single segment
+|`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
+
+
 ##### read-index-range
 
 Reads datoms from an indexed attribute via `datomic.api/index-range`.
@@ -77,6 +89,18 @@ Lifecycle entry:
 {:lifecycle/task :read-index-datoms
  :lifecycle/calls :onyx.plugin.datomic/read-index-range-calls}
 ```
+
+###### Attributes
+
+| key                          | type      | description
+|------------------------------|-----------|------------
+|`:datomic/uri`                | `string`  | The URI of the datomic database to connect to
+|`:datomic/t`                  | `integer` | The t-value of the database to read from
+|`:datomic/index-attribute`    | `keyword` | datomic indexed attribute
+|`:datomic/index-range-start`  | `any`     | inclusive start value for the index range
+|`:datomic/index-range-end`    | `any`     | exclusive end value for the index range
+|`:datomic/datoms-per-segment` | `integer` | The number of datoms to compress into a single segment
+|`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
 
 ##### read-log
 
@@ -123,6 +147,17 @@ persist checkpoint information to cluster under that key, ensuring that new
 jobs restart at the checkpoint. This is useful if the cluster needs to be
 restarted, or a job is killed and a new one is created in its place.
 
+###### Attributes
+
+| key                          | type      | description
+|------------------------------|-----------|------------
+|`:datomic/uri`                | `string`  | The URI of the datomic database to connect to
+|`:datomic/log-start-tx`       | `integer` | optional starting tx (inclusive) for log read
+|`:datomic/log-end-tx`         | `integer` | optional ending tx (exclusive) for log read. Sentinel will emitted when this tx is passed.
+|`:checkpoint/force-reset?`    | `boolean` | whether or not checkpointing should be re-initialised from log-start-tx, or 0 in the case of nil
+|`:checkpoint/key`             | `any`     | optional global (for a given onyx/id) key under which to store the checkpoint information. By default the task-id for the job will be used, in which case checkpointing will only be resumed when a virtual peer crashes, and not when a new job is started.
+|`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
+
 ##### commit-tx
 
 Writes new entity maps to datomic. Will automatically assign tempid's for the partition
@@ -147,6 +182,13 @@ Lifecycle entry:
 {:lifecycle/task :write-datoms
  :lifecycle/calls :onyx.plugin.datomic/write-tx-calls}
 ```
+
+###### Attributes
+
+| key                          | type      | description
+|------------------------------|-----------|------------
+|`:datomic/uri`                | `string`  | The URI of the datomic database to connect to
+|`:datomic/partition`          | `keyword` | Optional keyword. When supplied, :db/id tempids are added using this partition.
 
 ##### commit-bulk-tx
 
@@ -180,15 +222,12 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-calls}
 ```
 
-#### Attributes
+###### Attributes
 
-|key                           | type      | description
+| key                          | type      | description
 |------------------------------|-----------|------------
 |`:datomic/uri`                | `string`  | The URI of the datomic database to connect to
-|`:datomic/t`                  | `integer` | The t-value of the database to read from
-|`:datomic/partition`          | `keyword` | The partition of the database to read out of
-|`:datomic/datoms-per-segment` | `integer` | The number of datoms to compress into a single segment
-|`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
+|`:datomic/partition`          | `keyword` | Optional keyword. When supplied, :db/id tempids are added using this partition.
 
 ##### Datomic Params Injection via Lifecycles
 
