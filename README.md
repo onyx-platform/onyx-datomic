@@ -7,7 +7,7 @@ Onyx plugin providing read and write facilities for batch processing a Datomic d
 In your project file:
 
 ```clojure
-[org.onyxplatform/onyx-datomic "0.7.0.5"]
+[org.onyxplatform/onyx-datomic "0.7.0.7"]
 ```
 
 In your peer boot-up namespace:
@@ -39,7 +39,7 @@ Catalog entry:
  :onyx/doc "Reads a sequence of datoms from the d/datoms API"}
 ```
 
-`:datomic/datoms-components` may be used to filter by a datomic index. See the 
+`:datomic/datoms-components` may be used to filter by a datomic index. See the
 [Clojure Cookbook](https://github.com/clojure-cookbook/clojure-cookbook/blob/master/06_databases/6-15_traversing-indices.asciidoc) for examples.
 
 Lifecycle entry:
@@ -150,7 +150,7 @@ Lifecycle entry:
 
 ##### commit-bulk-tx
 
-Writes transactions via the `:tx` segment key to a Datomic database. The value of `:tx` should be as if it were ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. 
+Writes transactions via the `:tx` segment key to a Datomic database. The value of `:tx` should be as if it were ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions.
 
 Catalog entry:
 
