@@ -22,6 +22,12 @@
   (or (:datomic/datoms-per-segment task-map)
       (throw (ex-info ":datomic/datoms-per-segment missing from write-datoms task-map." task-map))))
 
+(defn start-commit-loop! [commit-ch log k]
+  (go-loop []
+           (when-let [content (<!! commit-ch)] 
+             (extensions/force-write-chunk log :chunk content k)
+             (recur))))
+
 ;;;;;;;;;;;;;
 ;;;;;;;;;;;;;
 ;; input plugins
@@ -46,12 +52,6 @@
           range-start (:datomic/index-range-start task-map)
           range-end (:datomic/index-range-end task-map)]
       (d/index-range db attribute range-start range-end))))
-
-(defn start-commit-loop! [commit-ch log task-id]
-  (go-loop []
-           (when-let [content (<!! commit-ch)] 
-             (extensions/force-write-chunk log :chunk content task-id)
-             (recur))))
 
 (defn close-read-datoms-resources 
   [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
@@ -202,6 +202,27 @@
   (close! commit-ch)
   (close! producer-ch))
 
+(defn set-starting-offset! [log task-map checkpoint-key start-tx]
+  (if (:checkpoint/force-reset? task-map)
+    (extensions/force-write-chunk log :chunk {:largest (or start-tx -1)
+                                              :status :incomplete}
+                                  checkpoint-key)
+    (extensions/write-chunk log :chunk {:largest (or start-tx -1)
+                                        :status :incomplete}
+                            checkpoint-key)))
+
+(defn validate-within-supplied-bounds [start-tx end-tx checkpoint-tx]
+  (when checkpoint-tx
+    (when (and start-tx (< checkpoint-tx start-tx))
+      (throw (ex-info "Checkpointed transaction is less than :datomic/log-start-tx"
+                      {:datomic/log-start-tx start-tx
+                       :datomic/log-end-tx end-tx
+                       :checkpointed-tx checkpoint-tx})))
+    (when (and end-tx (>= checkpoint-tx end-tx))
+      (throw (ex-info "Checkpointed transaction is greater than :datomic/log-start-tx"
+                      {:datomic/log-start-tx start-tx
+                       :datomic/log-end-tx end-tx
+                       :checkpointed-tx checkpoint-tx})))))
 
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
@@ -209,32 +230,40 @@
     (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
+        checkpoint-key (or (:checkpoint/key task-map) task-id)
+        _ (set-starting-offset! log task-map checkpoint-key start-tx)
+        checkpointed (extensions/read-chunk log :chunk checkpoint-key)
+        _ (validate-within-supplied-bounds start-tx max-tx (:largest checkpointed))
+        _ (when (= :complete (:status checkpointed))
+            (throw (Exception. "Restarted task and it was already complete.
+                                This is currently unhandled.")))
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
         batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout defaults))
         initial-backoff 1
         ch (:read-ch pipeline)
         conn (safe-connect task-map)
+        commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log checkpoint-key)
         producer-ch (thread
                       (try
-                        (loop [tx-index start-tx backoff initial-backoff]
-                          ;; tx-range called up to maximum tx in each iteration
+                        (loop [tx-index (:largest checkpointed) backoff initial-backoff]
                           ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
-                          ;; use a nil end-tx, and rely on removing higher tx values
-                          (if-let [entries (seq 
-                                             (take read-size 
-                                                   (seq 
+                          ;; always use a nil end-tx so that we don't have to rely on a tx id existing
+                          ;; in order to determine whether we should emit the sentinel (tx ids don't walways increment)
+                          (if-let [entries (seq
+                                             (take read-size
+                                                   (seq
                                                      (d/tx-range (d/log conn) tx-index nil))))]
                             (let [last-t (:t (last entries))
-                                  next-t (inc last-t)] 
-                              (doseq [entry (filter #(or (nil? max-tx)  
-                                                         (< (:t %) max-tx)) 
+                                  next-t (inc last-t)]
+                              (doseq [entry (filter #(or (nil? max-tx)
+                                                         (< (:t %) max-tx))
                                                     entries)]
-                                (>!! ch 
+                                (>!! ch
                                      (t/input (java.util.UUID/randomUUID)
                                               (update (into {} entry)
-                                                      :data 
+                                                      :data
                                                       (partial map unroll-log-datom)))))
-                              (if (or (nil? max-tx) 
+                              (if (or (nil? max-tx)
                                       (< last-t max-tx))
                                 (recur next-t initial-backoff)))
                             (let [next-backoff (min (* 2 backoff) batch-timeout)]
@@ -250,8 +279,17 @@
      :datomic/drained? (:drained pipeline)
      :datomic/pending-messages (:pending-messages pipeline)}))
 
+(defn highest-acked-tx [starting-tx max-tx pending-txes]
+  (loop [max-pending starting-tx]
+    (if (or (pending-txes (inc max-pending))
+            (= max-tx max-pending))
+      max-pending
+      (recur (inc max-pending)))))
+
 (defrecord DatomicLogInput 
-  [log task-id max-pending batch-size batch-timeout pending-messages drained? read-ch commit-ch]
+  [log task-id max-pending batch-size batch-timeout pending-messages drained?
+   top-tx top-acked-tx pending-txes
+   read-ch commit-ch]
   p-ext/Pipeline
   (write-batch 
     [this event]
@@ -265,17 +303,28 @@
           batch (->> (range max-segments)
                      (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true)))))]
       (doseq [m batch]
+        (let [message (:message m)]
+          (when-not (= message :done)
+            (swap! top-tx max (:t message))
+            (swap! pending-txes conj (:t message))))
         (swap! pending-messages assoc (:id m) m))
       (when (and (= 1 (count @pending-messages))
                  (= (count batch) 1)
                  (= (:message (first batch)) :done))
+        (>!! commit-ch {:status :complete})
         (reset! drained? true))
       {:onyx.core/batch batch}))
 
   p-ext/PipelineInput
 
   (ack-segment [_ _ segment-id]
-    (swap! pending-messages dissoc segment-id))
+    (let [tx (:t (:message (@pending-messages segment-id)))]
+      (swap! pending-txes disj tx)
+      ;; if this transaction is now the lowest unacked tx, then we can update the checkpoint
+      (let [new-top-acked (highest-acked-tx @top-acked-tx @top-tx @pending-txes)]
+        (>!! commit-ch {:largest new-top-acked :status :incomplete})
+        (reset! top-acked-tx new-top-acked))
+      (swap! pending-messages dissoc segment-id)))
 
   (retry-segment 
     [_ event segment-id]
@@ -297,12 +346,18 @@
         batch-size (:onyx/batch-size catalog-entry)
         batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
         read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
-        commit-ch (chan (sliding-buffer 1))] 
+        commit-ch (chan (sliding-buffer 1))
+        top-tx (atom -1)
+        top-acked-tx (atom -1)
+        pending-txes (atom #{})]
     (->DatomicLogInput (:onyx.core/log pipeline-data)
                        (:onyx.core/task-id pipeline-data)
-                       max-pending batch-size batch-timeout 
-                       (atom {}) 
-                       (atom false) 
+                       max-pending batch-size batch-timeout
+                       (atom {})
+                       (atom false)
+                       top-tx
+                       top-acked-tx
+                       pending-txes
                        read-ch
                        commit-ch)))
 

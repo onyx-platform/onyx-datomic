@@ -32,6 +32,7 @@
 
 (def db-uri (str "datomic:free://" 
                  (apply str (butlast (slurp "eth0.ip"))) 
+                 ;"127.0.0.1"
                  ":4334/" 
                  (java.util.UUID/randomUUID)))
 
@@ -83,6 +84,8 @@
     :onyx/type :input
     :onyx/medium :datomic
     :datomic/uri db-uri
+    ;:checkpoint/key "111"
+    ;:checkpoint/force-reset? true
     :onyx/max-peers 1
     :datomic/log-end-tx 1006
     :onyx/batch-size batch-size
