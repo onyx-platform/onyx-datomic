@@ -245,7 +245,7 @@
         commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log checkpoint-key)
         producer-ch (thread
                       (try
-                        (loop [tx-index (:largest checkpointed) backoff initial-backoff]
+                        (loop [tx-index (inc (:largest checkpointed)) backoff initial-backoff]
                           ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
                           ;; always use a nil end-tx so that we don't have to rely on a tx id existing
                           ;; in order to determine whether we should emit the sentinel (tx ids don't walways increment)
