@@ -90,7 +90,7 @@
                             (>!! ch (t/input (java.util.UUID/randomUUID) :done))
                             (catch Exception e
                               (fatal e))))]
-        
+
         {:datomic/read-ch ch
          :datomic/commit-ch (:commit-ch pipeline)
          :datomic/producer-ch producer-ch
@@ -234,9 +234,9 @@
         _ (set-starting-offset! log task-map checkpoint-key start-tx)
         checkpointed (extensions/read-chunk log :chunk checkpoint-key)
         _ (validate-within-supplied-bounds start-tx max-tx (:largest checkpointed))
-        _ (when (= :complete (:status checkpointed))
-            (throw (Exception. "Restarted task and it was already complete.
-                                This is currently unhandled.")))
+        ; _ (when (= :complete (:status checkpointed))
+        ;     (throw (Exception. "Restarted task and it was already complete.
+        ;                         This is currently unhandled.")))
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
         batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout defaults))
         initial-backoff 1
@@ -311,7 +311,7 @@
       (when (and (= 1 (count @pending-messages))
                  (= (count batch) 1)
                  (= (:message (first batch)) :done))
-        (>!! commit-ch {:status :complete})
+        ;(>!! commit-ch {:status :complete})
         (reset! drained? true))
       {:onyx.core/batch batch}))
 

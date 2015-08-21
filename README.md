@@ -93,6 +93,7 @@ Catalog entry:
  :datomic/uri db-uri
  :datomic/log-start-tx <<OPTIONAL_TX_START_INDEX>>
  :datomic/log-end-tx <<OPTIONAL_TX_END_INDEX>>
+ :checkpoint/force-reset? true
  :onyx/max-peers 1
  :onyx/batch-size batch-size
  :onyx/doc "Reads a sequence of datoms from the d/log API"}
@@ -105,12 +106,22 @@ Lifecycle entry:
  :lifecycle/calls :onyx.plugin.datomic/read-log-calls}
 ```
 
-Task will emit a sentinel `:done` when it reaches the tx log-end-tx. Note, when
-using :datomic/log-end-tx, the transaction id must eventually exist in order for
-the sentinel to be output. This is because log-end-tx is used as an argument to
-tx-range-log, and thus no greater tx will ever be read.
+Task will emit a sentinel `:done` when it reaches the tx log-end-tx
+(exclusive). Note, when using :datomic/log-end-tx, the transaction id must
+eventually exist in order for the sentinel to be output. This is because
+log-end-tx is used as an argument to tx-range-log, and thus no greater tx will
+ever be read.
 
 Segments will be read in the form `{:t tx-id :data [[e a v t added] [e a v t added]]}`.
+
+Log read checkpointing is per job - i.e. if a virtual peer crashes, and a new
+one is allocated to the task, the new virtual peer will restart reading the log
+at the highest acked point. If a new job is started, this checkpoint
+information will not be used. In order to persist checkpoint information
+between jobs, add `:checkpoint/key "somekey"` to the task-map. This will
+persist checkpoint information to cluster under that key, ensuring that new
+jobs restart at the checkpoint. This is useful if the cluster needs to be
+restarted, or a job is killed and a new one is created in its place.
 
 ##### commit-tx
 
