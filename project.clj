@@ -24,5 +24,5 @@
   :profiles {:dev {:dependencies [[midje "1.7.0"]
                                   [com.datomic/datomic-free "0.9.5153"]]
                    :plugins [[lein-midje "3.1.3"]
-                             [com.andrewmcveigh/lein-auto-release "0.1.10"]]}
+                             [com.andrewmcveigh/lein-auto-release "0.1.11"]]}
              :circle-ci {:jvm-opts ["-Xmx4g"]}})
