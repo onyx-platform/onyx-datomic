@@ -104,8 +104,9 @@ Lifecycle entry:
 
 ##### read-log
 
-Reads the transaction log via d/tx-range. Will continue to read from log as datoms are added
-to the database.
+Reads the transaction log via repeated chunked calls of d/tx-range. Continues
+to read transactions until `:datomic/log-end-tx` is reached, or forever if
+`:datomic/log-end-tx` is nil.
 
 Catalog entry:
 
