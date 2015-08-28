@@ -267,7 +267,6 @@
                                            (doseq [entry (filter #(or (nil? max-tx)
                                                                       (< (:t %) max-tx))
                                                                  entries)]
-                                             (info "Putting on " entry)
                                              (>!! read-ch
                                                   (t/input (java.util.UUID/randomUUID)
                                                            (update (into {} entry)
