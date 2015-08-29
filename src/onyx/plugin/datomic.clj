@@ -256,8 +256,7 @@
                                      ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
                                      ;; always use a nil end-tx so that we don't have to rely on a tx id existing
                                      ;; in order to determine whether we should emit the sentinel (tx ids don't always increment)
-                                     (if (first (alts!! [shutdown-ch] :default false))
-                                       :shutdown
+                                     (if (first (alts!! [shutdown-ch] :default true))
                                        (if-let [entries (seq
                                                           (take read-size
                                                                 (seq
@@ -277,7 +276,8 @@
                                              (recur next-t initial-backoff)))
                                          (let [next-backoff (min (* 2 backoff) batch-timeout)]
                                            (Thread/sleep backoff)
-                                           (recur tx-index next-backoff)))))]
+                                           (recur tx-index next-backoff)))
+                                       :shutdown))]
                           (if-not (= exit :shutdown)
                             (>!! read-ch (t/input (java.util.UUID/randomUUID) :done))))
                         (catch Exception e
