@@ -57,7 +57,8 @@
   [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
   (close! read-ch)
   (close! commit-ch)
-  (close! producer-ch))
+  (close! producer-ch)
+  {})
 
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
@@ -197,10 +198,12 @@
    (:added datom)])
 
 (defn close-read-log-resources
-  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
+  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch datomic/shutdown-ch] :as event} lifecycle]
   (close! read-ch)
   (close! commit-ch)
-  (close! producer-ch))
+  (close! shutdown-ch)
+  (<!! producer-ch)
+  {})
 
 (defn set-starting-offset! [log task-map checkpoint-key start-tx]
   (if (:checkpoint/force-reset? task-map)
@@ -224,59 +227,65 @@
                        :datomic/log-end-tx end-tx
                        :checkpointed-tx checkpoint-tx})))))
 
+(defn check-completed [task-map checkpointed]
+  (when (and (not (:checkpoint/key task-map))
+             (= :complete (:status checkpointed)))
+    (throw (Exception. "Restarted task, however it was already completed for this job.
+                       This is currently unhandled."))))
+
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (= 1 (:onyx/max-peers task-map))
     (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
+        {:keys [read-ch shutdown-ch commit-ch]} pipeline
         checkpoint-key (or (:checkpoint/key task-map) task-id)
         _ (set-starting-offset! log task-map checkpoint-key start-tx)
         checkpointed (extensions/read-chunk log :chunk checkpoint-key)
         _ (validate-within-supplied-bounds start-tx max-tx (:largest checkpointed))
-        _ (when (and (not (:checkpoint/key task-map))
-                     (= :complete (:status checkpointed)))
-            (throw (Exception. "Restarted task, however it was already completed for this job.
-                                This is currently unhandled.")))
+        _ (check-completed task-map checkpointed)
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
         batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout defaults))
         initial-backoff 1
-        ch (:read-ch pipeline)
         conn (safe-connect task-map)
-        commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log checkpoint-key)
+        commit-loop-ch (start-commit-loop! commit-ch log checkpoint-key)
         producer-ch (thread
                       (try
-                        (loop [tx-index (inc (:largest checkpointed)) backoff initial-backoff]
-                          ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
-                          ;; always use a nil end-tx so that we don't have to rely on a tx id existing
-                          ;; in order to determine whether we should emit the sentinel (tx ids don't walways increment)
-                          (if-let [entries (seq
-                                             (take read-size
-                                                   (seq
-                                                     (d/tx-range (d/log conn) tx-index nil))))]
-                            (let [last-t (:t (last entries))
-                                  next-t (inc last-t)]
-                              (doseq [entry (filter #(or (nil? max-tx)
-                                                         (< (:t %) max-tx))
-                                                    entries)]
-                                (>!! ch
-                                     (t/input (java.util.UUID/randomUUID)
-                                              (update (into {} entry)
-                                                      :data
-                                                      (partial map unroll-log-datom)))))
-                              (if (or (nil? max-tx)
-                                      (< last-t max-tx))
-                                (recur next-t initial-backoff)))
-                            (let [next-backoff (min (* 2 backoff) batch-timeout)]
-                              (info "SLEEPING FOR " backoff)
-                              (Thread/sleep backoff)
-                              (recur tx-index next-backoff))))
-                        (>!! ch (t/input (java.util.UUID/randomUUID) :done))
+                        (let [exit (loop [tx-index (inc (:largest checkpointed)) backoff initial-backoff]
+                                     ;; relies on the fact that tx-range is lazy, therefore only read-size elements will be realised
+                                     ;; always use a nil end-tx so that we don't have to rely on a tx id existing
+                                     ;; in order to determine whether we should emit the sentinel (tx ids don't always increment)
+                                     (if (first (alts!! [shutdown-ch] :default true))
+                                       (if-let [entries (seq
+                                                          (take read-size
+                                                                (seq
+                                                                  (d/tx-range (d/log conn) tx-index nil))))]
+                                         (let [last-t (:t (last entries))
+                                               next-t (inc last-t)]
+                                           (doseq [entry (filter #(or (nil? max-tx)
+                                                                      (< (:t %) max-tx))
+                                                                 entries)]
+                                             (>!! read-ch
+                                                  (t/input (java.util.UUID/randomUUID)
+                                                           (update (into {} entry)
+                                                                   :data
+                                                                   (partial map unroll-log-datom)))))
+                                           (if (or (nil? max-tx)
+                                                   (< last-t max-tx))
+                                             (recur next-t initial-backoff)))
+                                         (let [next-backoff (min (* 2 backoff) batch-timeout)]
+                                           (Thread/sleep backoff)
+                                           (recur tx-index next-backoff)))
+                                       :shutdown))]
+                          (if-not (= exit :shutdown)
+                            (>!! read-ch (t/input (java.util.UUID/randomUUID) :done))))
                         (catch Exception e
                           (fatal e))))]
 
-    {:datomic/read-ch ch
-     :datomic/commit-ch (:commit-ch pipeline)
+    {:datomic/read-ch read-ch
+     :datomic/shutdown-ch shutdown-ch
+     :datomic/commit-ch commit-ch
      :datomic/producer-ch producer-ch
      :datomic/drained? (:drained pipeline)
      :datomic/pending-messages (:pending-messages pipeline)}))
@@ -291,7 +300,7 @@
 (defrecord DatomicLogInput
   [log task-id max-pending batch-size batch-timeout pending-messages drained?
    top-tx top-acked-tx pending-txes
-   read-ch commit-ch]
+   read-ch commit-ch shutdown-ch]
   p-ext/Pipeline
   (write-batch
     [this event]
@@ -350,6 +359,7 @@
         batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
         read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
         commit-ch (chan (sliding-buffer 1))
+        shutdown-ch (chan 1)
         top-tx (atom -1)
         top-acked-tx (atom -1)
         pending-txes (atom #{})]
@@ -362,7 +372,8 @@
                        top-acked-tx
                        pending-txes
                        read-ch
-                       commit-ch)))
+                       commit-ch
+                       shutdown-ch)))
 
 (def read-log-calls
   {:lifecycle/before-task-start inject-read-log-resources

@@ -104,8 +104,9 @@ Lifecycle entry:
 
 ##### read-log
 
-Reads the transaction log via d/tx-range. Will continue to read from log as datoms are added
-to the database.
+Reads the transaction log via repeated chunked calls of d/tx-range. Continues
+to read transactions until `:datomic/log-end-tx` is reached, or forever if
+`:datomic/log-end-tx` is nil.
 
 Catalog entry:
 
@@ -131,10 +132,7 @@ Lifecycle entry:
 ```
 
 Task will emit a sentinel `:done` when it reaches the tx log-end-tx
-(exclusive). Note, when using :datomic/log-end-tx, the transaction id must
-eventually exist in order for the sentinel to be output. This is because
-log-end-tx is used as an argument to tx-range-log, and thus no greater tx will
-ever be read.
+(exclusive).
 
 Segments will be read in the form `{:t tx-id :data [[e a v t added] [e a v t added]]}`.
 
@@ -143,9 +141,10 @@ one is allocated to the task, the new virtual peer will restart reading the log
 at the highest acked point. If a new job is started, this checkpoint
 information will not be used. In order to persist checkpoint information
 between jobs, add `:checkpoint/key "somekey"` to the task-map. This will
-persist checkpoint information to cluster under that key, ensuring that new
-jobs restart at the checkpoint. This is useful if the cluster needs to be
-restarted, or a job is killed and a new one is created in its place.
+persist checkpoint information for cluster (on a given :onyx/id) under the key,
+ensuring that any new jobs restart at the checkpoint. This is useful if the
+cluster needs to be restarted, or a job is killed and a new one is created in
+its place.
 
 ###### Attributes
 

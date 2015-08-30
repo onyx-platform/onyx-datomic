@@ -1,3 +1,5 @@
+#### 0.7.2.0
+* Add a read-log input plugin to read the datomic log.
 
 #### 0.7.0.2
 * commit-tx :datomic/partition is now optional.
