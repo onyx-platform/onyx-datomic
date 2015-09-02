@@ -8,7 +8,7 @@
                               :password :env}}
   :dependencies [[org.clojure/clojure "1.7.0"]
                  ^{:voom {:repo "git@github.com:onyx-platform/onyx.git" :branch "master"}}
-                 [org.onyxplatform/onyx "0.7.3-20150902_115125-g83d7be5"]]
+                 [org.onyxplatform/onyx "0.7.3-20150902_134205-g8bdc527"]]
   :profiles {:dev {:dependencies [[midje "1.7.0"]
                                   [com.datomic/datomic-free "0.9.5153"]]
                    :plugins [[lein-midje "3.1.3"]]}
