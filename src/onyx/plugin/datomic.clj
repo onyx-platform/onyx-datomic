@@ -108,6 +108,10 @@
       max-pending
       (recur (inc max-pending)))))
 
+(defn all-done? [messages]
+  (empty? (remove #(= :done (:message %))
+                  messages)))
+
 (defrecord DatomicInput [log task-id max-pending batch-size batch-timeout
                          pending-messages drained?
                          top-chunk-index top-acked-chunk-index pending-chunk-indices
@@ -129,9 +133,10 @@
           (swap! top-chunk-index max chunk-index)
           (swap! pending-chunk-indices conj chunk-index))
         (swap! pending-messages assoc (:id m) m))
-    (when (and (= 1 (count @pending-messages))
-               (= (count batch) 1)
-               (= (:message (first batch)) :done))
+    (when (and (all-done? (vals @pending-messages))
+               (all-done? batch)
+               (or (not (empty? @pending-messages))
+                   (not (empty? batch))))
       (>!! commit-ch {:status :complete})
       (reset! drained? true))
     {:onyx.core/batch batch}))
@@ -319,9 +324,10 @@
             (swap! top-tx max (:t message))
             (swap! pending-txes conj (:t message))))
         (swap! pending-messages assoc (:id m) m))
-      (when (and (= 1 (count @pending-messages))
-                 (= (count batch) 1)
-                 (= (:message (first batch)) :done))
+      (when (and (all-done? (vals @pending-messages))
+                 (all-done? batch)
+                 (or (not (empty? @pending-messages))
+                     (not (empty? batch))))
         (when-not (:checkpoint/key (:onyx.core/task-map event))
           (>!! commit-ch {:status :complete}))
         (reset! drained? true))
