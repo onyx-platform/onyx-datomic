@@ -20,3 +20,5 @@
                              [lein-set-version "0.4.1"]
                              [lein-pprint "1.1.1"]]}
              :circle-ci {:jvm-opts ["-Xmx4g"]}})
+
+
