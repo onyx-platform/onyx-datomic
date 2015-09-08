@@ -316,8 +316,10 @@
     (let [pending (count (keys @pending-messages))
           max-segments (min (- max-pending pending) batch-size)
           timeout-ch (timeout batch-timeout)
-          batch (->> (range max-segments)
-                     (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true)))))]
+          batch (if (zero? max-segments) 
+                  (<!! timeout-ch)
+                  (->> (range max-segments)
+                       (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true))))))]
       (doseq [m batch]
         (let [message (:message m)]
           (when-not (= message :done)
