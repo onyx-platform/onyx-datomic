@@ -6,7 +6,7 @@
             [midje.sweet :refer :all]
             [datomic.api :as d]))
 
-;; NEED TO ADD A TEST SELECTOR SO THIS TEST ONLY RUNS ON CIRCLE CI
+;; TODO: NEED TO ADD A TEST SELECTOR SO THIS TEST ONLY RUNS ON CIRCLE CI
 
 (def id (java.util.UUID/randomUUID))
 
@@ -19,9 +19,8 @@
 (def peer-config
   {:zookeeper/address "127.0.0.1:2188"
    :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
-   :onyx.messaging/impl :netty
+   :onyx.messaging/impl :aeron
    :onyx.messaging/peer-port-range [40200 40400]
-   :onyx.messaging/peer-ports [40199]
    :onyx.messaging/bind-addr "localhost"
    :onyx.messaging/backpressure-strategy :high-restart-latency
    :onyx/id id})
