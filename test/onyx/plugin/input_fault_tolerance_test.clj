@@ -19,8 +19,7 @@
   {:zookeeper/address "127.0.0.1:2188"
    :onyx.peer/job-scheduler :onyx.job-scheduler/greedy
    :onyx.messaging/impl :aeron
-   :onyx.messaging/peer-port-range [40200 40400]
-   :onyx.messaging/peer-ports [40199]
+   :onyx.messaging/peer-port 40200
    :onyx.messaging/bind-addr "localhost"
    :onyx.messaging/backpressure-strategy :high-restart-latency
    :onyx/id id})
