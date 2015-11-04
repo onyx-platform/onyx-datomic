@@ -96,7 +96,6 @@
    {:onyx/name :query
     :onyx/fn :onyx.plugin.input-test/my-test-query
     :onyx/type :function
-    :onyx/consumption :concurrent
     :onyx/batch-size batch-size
     :onyx/doc "Queries for names of 5 characters or fewer"}
 
