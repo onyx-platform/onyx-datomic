@@ -328,6 +328,7 @@
         (swap! pending-messages assoc (:id m) m))
       (when (and (all-done? (vals @pending-messages))
                  (all-done? batch)
+                 (zero? (count (.buf read-ch)))
                  (or (not (empty? @pending-messages))
                      (not (empty? batch))))
         (when-not (:checkpoint/key (:onyx.core/task-map event))
