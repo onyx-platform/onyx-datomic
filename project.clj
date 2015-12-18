@@ -1,6 +1,6 @@
 (defproject org.onyxplatform/onyx-datomic "0.8.3.1-SNAPSHOT"
   :description "Onyx plugin for Datomic"
-  :url "https://github.com/MichaelDrogalis/onyx-datomic"
+  :url "https://github.com/onyx-platform/onyx-datomic"
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :repositories {"snapshots" {:url "https://clojars.org/repo"
