@@ -1,3 +1,6 @@
+#### 0.8.6.1
+* IMPORTANT FIX: producer threads now feedback exceptions to read-batch rather than just getting stuck
+
 #### 0.8.3.1
 * written tx data is now included in the event map under :datomic/written
 
