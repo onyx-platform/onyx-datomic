@@ -92,7 +92,8 @@
                                            (seq (drop datoms-per-segment datoms)))))))
                             (>!! ch (t/input (random-uuid) :done))
                             (catch Exception e
-                              (fatal e))))]
+                              ;; feedback exception to read-batch
+                              (>!! ch e))))]
 
         {:datomic/read-ch ch
          :datomic/commit-ch (:commit-ch pipeline)
@@ -114,6 +115,22 @@
   (empty? (remove #(= :done (:message %))
                   messages)))
 
+(defn completed? [batch pending-messages read-ch]
+  (and (all-done? (vals @pending-messages))
+       (all-done? batch)
+       (zero? (count (.buf read-ch)))
+       (or (not (empty? @pending-messages))
+           (not (empty? batch)))))
+
+(defn feedback-producer-exception! [e]
+  (when (instance? java.lang.Throwable e)
+    (throw e)))
+
+(defn update-chunk-indices! [m top-chunk-index pending-chunk-indices]
+  (when-let [chunk-index (:chunk-index m)]
+    (swap! top-chunk-index max chunk-index)
+    (swap! pending-chunk-indices conj chunk-index)))
+
 (defrecord DatomicInput [log task-id max-pending batch-size batch-timeout
                          pending-messages drained?
                          top-chunk-index top-acked-chunk-index pending-chunk-indices
@@ -131,14 +148,10 @@
           batch (->> (range max-segments)
                      (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true)))))]
       (doseq [m batch]
-        (when-let [chunk-index (:chunk-index m)]
-          (swap! top-chunk-index max chunk-index)
-          (swap! pending-chunk-indices conj chunk-index))
+        (feedback-producer-exception! m)
+        (update-chunk-indices! m top-chunk-index pending-chunk-indices)
         (swap! pending-messages assoc (:id m) m))
-    (when (and (all-done? (vals @pending-messages))
-               (all-done? batch)
-               (or (not (empty? @pending-messages))
-                   (not (empty? batch))))
+    (when (completed? batch pending-messages read-ch) 
       (>!! commit-ch {:status :complete})
       (reset! drained? true))
     {:onyx.core/batch batch}))
@@ -289,7 +302,8 @@
                           (if-not (= exit :shutdown)
                             (>!! read-ch (t/input (random-uuid) :done))))
                         (catch Exception e
-                          (fatal e))))]
+                          ;; feedback exception to read-batch
+                          (>!! read-ch e))))]
 
     {:datomic/read-ch read-ch
      :datomic/shutdown-ch shutdown-ch
@@ -304,6 +318,13 @@
             (= max-tx max-pending))
       max-pending
       (recur (inc max-pending)))))
+
+(defn update-top-txes! [m top-tx pending-txes]
+  (let [message (:message m)]
+    (when-not (= message :done)
+      (swap! top-tx max (:t message))
+      (swap! pending-txes conj (:t message)))))
+
 
 (defrecord DatomicLogInput
   [log task-id max-pending batch-size batch-timeout pending-messages drained?
@@ -324,16 +345,10 @@
                   (->> (range max-segments)
                        (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true))))))]
       (doseq [m batch]
-        (let [message (:message m)]
-          (when-not (= message :done)
-            (swap! top-tx max (:t message))
-            (swap! pending-txes conj (:t message))))
+        (feedback-producer-exception! m)
+        (update-top-txes! m top-tx pending-txes)
         (swap! pending-messages assoc (:id m) m))
-      (when (and (all-done? (vals @pending-messages))
-                 (all-done? batch)
-                 (zero? (count (.buf read-ch)))
-                 (or (not (empty? @pending-messages))
-                     (not (empty? batch))))
+      (when (completed? batch pending-messages read-ch)
         (when-not (:checkpoint/key (:onyx.core/task-map event))
           (>!! commit-ch {:status :complete}))
         (reset! drained? true))
