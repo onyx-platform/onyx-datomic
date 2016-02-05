@@ -125,7 +125,7 @@
   {:lifecycle/before-batch (fn [event lifecycle]
                              ; give the peer a bit of time to write
                              ;; the chunks out and ack the batches
-                             (when (zero? (mod (swap! batch-num inc) 3))
+                             (when (zero? (mod (swap! batch-num inc) 5))
                                (Thread/sleep 3000) 
                                (throw (ex-info "Restartable" {:restartable? true}))))})
 
