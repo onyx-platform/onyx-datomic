@@ -91,7 +91,6 @@
     :onyx/medium :datomic
     :datomic/uri db-uri
     :datomic/t t
-    :datomic/partition :com.mdrogalis/people
     :datomic/datoms-index :eavt
     :datomic/datoms-per-segment 1
     :onyx/restart-pred-fn :onyx.plugin.input-fault-tolerance-test/restartable?
