@@ -33,8 +33,8 @@
              {:datomic/uri s/Str
               :datomic/t s/Int
               :datomic/datoms-index s/Keyword
-              :datomic/datoms-components [s/Any]
               :datomic/datoms-per-segment s/Int
+              (s/optional-key :datomic/datoms-components) [s/Any]
               (s/optional-key :onyx/max-peers) (s/enum 1)
               (s/optional-key :onyx/n-peers) (s/enum 1)
               UserTaskMapKey s/Any}]))
@@ -54,7 +54,7 @@
 
 (def DatomicWriteDatomsTaskMap
   (s/->Both [os/TaskMap 
-             {:datomic/uri db-uri
+             {:datomic/uri s/Str
               (s/optional-key :datomic/partition) (s/either s/Int s/Keyword)
               (s/optional-key :onyx/max-peers) (s/enum 1)
               (s/optional-key :onyx/n-peers) (s/enum 1)
