@@ -524,7 +524,7 @@
 
 (defn write-bulk-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
-        _ (s/validate DatomicWriteDatoms task-map)
+        _ (s/validate DatomicWriteDatomsTaskMap task-map)
         conn (safe-connect task-map)]
     (->DatomicWriteBulkDatoms conn)))
 
