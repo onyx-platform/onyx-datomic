@@ -23,6 +23,7 @@
              {:datomic/uri s/Str
               (s/optional-key :datomic/log-start-tx) s/Int
               (s/optional-key :datomic/log-end-tx) s/Int
+              (s/optional-key :checkpoint/key) s/Str
               :checkpoint/force-reset? s/Bool
               (s/optional-key :onyx/max-peers) (s/enum 1)
               (s/optional-key :onyx/n-peers) (s/enum 1)
