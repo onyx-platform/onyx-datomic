@@ -205,6 +205,7 @@
     :onyx/medium :datomic
     :datomic/uri db-uri
     :checkpoint/key "global-checkpoint-key"
+    :checkpoint/force-reset? false
     :datomic/log-end-tx 1014
     :onyx/max-peers 1
     :onyx/batch-size batch-size
