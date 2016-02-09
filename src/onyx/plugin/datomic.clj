@@ -11,7 +11,61 @@
             [onyx.static.default-vals :refer [arg-or-default defaults]]
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
+            [schema.core :as s]
+            [onyx.schema :as os]
             [taoensso.timbre :refer [info debug fatal]]))
+
+;;;;;;;;;;;;;;
+;;;;;;;;;;;;;;
+;; task schemas
+
+(def UserTaskMapKey
+  (os/build-allowed-key-ns :datomic))
+
+(def DatomicReadLogTaskMap
+  (s/->Both [os/TaskMap 
+             {:datomic/uri s/Str
+              (s/optional-key :datomic/log-start-tx) s/Int
+              (s/optional-key :datomic/log-end-tx) s/Int
+              (s/optional-key :checkpoint/key) s/Str
+              :checkpoint/force-reset? s/Bool
+              (s/optional-key :onyx/max-peers) (s/enum 1)
+              (s/optional-key :onyx/n-peers) (s/enum 1)
+              UserTaskMapKey s/Any}]))
+
+(def DatomicReadDatomsTaskMap
+  (s/->Both [os/TaskMap 
+             {:datomic/uri s/Str
+              :datomic/t s/Int
+              :datomic/datoms-index s/Keyword
+              :datomic/datoms-per-segment s/Int
+              (s/optional-key :datomic/datoms-components) [s/Any]
+              (s/optional-key :onyx/max-peers) (s/enum 1)
+              (s/optional-key :onyx/n-peers) (s/enum 1)
+              UserTaskMapKey s/Any}]))
+
+
+(def DatomicReadIndexRangeTaskMap
+  (s/->Both [os/TaskMap 
+             {:datomic/uri s/Str
+              :datomic/t s/Int
+              :datomic/index-attribute s/Any
+              :datomic/index-range-start s/Any
+              :datomic/index-range-end s/Any
+              :datomic/datoms-per-segment s/Int
+              (s/optional-key :onyx/max-peers) (s/enum 1)
+              (s/optional-key :onyx/n-peers) (s/enum 1)
+              UserTaskMapKey s/Any}]))
+
+(def DatomicWriteDatomsTaskMap
+  (s/->Both [os/TaskMap 
+             {:datomic/uri s/Str
+              (s/optional-key :datomic/partition) (s/either s/Int s/Keyword)
+              (s/optional-key :onyx/max-peers) (s/enum 1)
+              (s/optional-key :onyx/n-peers) (s/enum 1)
+              UserTaskMapKey s/Any}]))
+
+;;; Helpers
 
 (defn safe-connect [task-map]
   (if-let [uri (:datomic/uri task-map)]
@@ -43,15 +97,71 @@
 (defn datoms-sequence [db task-map]
   (case (:onyx/plugin task-map)
     ::read-datoms
-    (let [datoms-components (or (:datomic/datoms-components task-map) [])
+    (let [_ (s/validate DatomicReadDatomsTaskMap task-map)
+          datoms-components (or (:datomic/datoms-components task-map) [])
           datoms-index (:datomic/datoms-index task-map)]
       (apply d/datoms db datoms-index datoms-components))
     ::read-index-range
-    (let [attribute (:datomic/index-attribute task-map)
+    (let [_ (s/validate DatomicReadIndexRangeTaskMap task-map)
+          attribute (:datomic/index-attribute task-map)
           range-start (:datomic/index-range-start task-map)
           range-end (:datomic/index-range-end task-map)]
       (d/index-range db attribute range-start range-end))))
 
+<<<<<<< HEAD
+=======
+(defn close-read-datoms-resources
+  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
+  (close! read-ch)
+  (close! commit-ch)
+  (close! producer-ch)
+  {})
+
+(defn inject-read-datoms-resources
+  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
+  (when-not (or (= 1 (:onyx/max-peers task-map))
+                (= 1 (:onyx/n-peers task-map)))
+    (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
+
+  (let [_ (extensions/write-chunk log :chunk {:chunk-index -1 :status :incomplete} task-id)
+        content (extensions/read-chunk log :chunk task-id)]
+    (if (= :complete (:status content))
+      (throw (Exception. "Restarted task and it was already complete. This is currently unhandled."))
+      (let [ch (:read-ch pipeline)
+            start-index (:chunk-index content)
+            conn (safe-connect task-map)
+            db (safe-as-of task-map conn)
+            datoms-per-segment (safe-datoms-per-segment task-map)
+            unroll (partial unroll-datom db)
+            num-ignored (* start-index datoms-per-segment)
+            commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log task-id)
+            producer-ch (thread
+                          (try
+                            (loop [chunk-index (inc start-index)
+                                   datoms (seq (drop num-ignored
+                                                     (datoms-sequence db task-map)))]
+                              (when datoms
+                                (let [success? (>!! ch (assoc (t/input (random-uuid)
+                                                                       {:datoms (map unroll (take datoms-per-segment datoms))})
+                                                              :chunk-index chunk-index))]
+                                  (if success?
+                                    (recur (inc chunk-index)
+                                           (seq (drop datoms-per-segment datoms)))))))
+                            (>!! ch (t/input (random-uuid) :done))
+                            (catch Exception e
+                              ;; feedback exception to read-batch
+                              (>!! ch e))))]
+
+        {:datomic/read-ch ch
+         :datomic/commit-ch (:commit-ch pipeline)
+         :datomic/producer-ch producer-ch
+         :datomic/drained? (:drained pipeline)
+         :datomic/top-chunk-index (:top-chunk-index pipeline)
+         :datomic/top-acked-chunk-index (:top-acked-chunk-index pipeline)
+         :datomic/pending-chunk-indices (:pending-chunk-indices pipeline)
+         :datomic/pending-messages (:pending-messages pipeline)}))))
+
+>>>>>>> master
 (defn highest-acked-chunk [starting-index max-index pending-chunk-indices]
   (loop [max-pending starting-index]
     (if (or (pending-chunk-indices (inc max-pending))
@@ -244,6 +354,8 @@
   (when-not (or (= 1 (:onyx/max-peers task-map))
                 (= 1 (:onyx/n-peers task-map)))
     (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
+  (s/validate DatomicReadLogTaskMap task-map)
+
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         {:keys [read-ch shutdown-ch commit-ch]} pipeline
@@ -396,7 +508,7 @@
 ;; output plugins
 
 (defn inject-write-tx-resources
-  [{:keys [onyx.core/pipeline]} lifecycle]
+  [{:keys [onyx.core/pipeline onyx.core/task-map]} lifecycle]
   {:datomic/conn (:conn pipeline)})
 
 (defn inject-write-bulk-tx-resources
@@ -425,6 +537,7 @@
 
 (defn write-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
+        _ (s/validate DatomicWriteDatomsTaskMap task-map)
         conn (safe-connect task-map)
         partition (:datomic/partition task-map)]
     (->DatomicWriteDatoms conn partition)))
@@ -449,6 +562,7 @@
 
 (defn write-bulk-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
+        _ (s/validate DatomicWriteDatomsTaskMap task-map)
         conn (safe-connect task-map)]
     (->DatomicWriteBulkDatoms conn)))
 
