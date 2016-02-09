@@ -137,6 +137,7 @@
              :datoms-per-segment (safe-datoms-per-segment task-map)
              :datoms (atom (datoms-sequence db task-map)))))
   (stop [this] (assoc this :conn nil :datoms nil))
+  (segment-complete! [this segment])
   (checkpoint [this]
     {:chunk-index @top-acked-chunk-index :status :incomplete})
   (checkpoint-segment! [this chunk-index]
@@ -151,12 +152,12 @@
     (reset! top-acked-chunk-index chunk-index)
     (reset! top-chunk-index chunk-index)
     (swap! datoms (fn [s] (drop (* datoms-per-segment chunk-index) s))))
-  (next-segment! [this prev-checkpoint]
+  (next-segment! [this prev-chunk]
     (let [vs (take datoms-per-segment @datoms)]
       (if-not (empty? vs)
         (do (swap! datoms (fn [ds] (drop datoms-per-segment ds)))
             (->Next {:datoms (map unroll vs)} 
-                    (inc prev-checkpoint)))
+                    (inc prev-chunk)))
         (->Next :done nil)))))
 
 (defn shared-input-builder [event]
