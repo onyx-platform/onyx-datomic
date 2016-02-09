@@ -81,10 +81,6 @@
   (or (:datomic/datoms-per-segment task-map)
       (throw (ex-info ":datomic/datoms-per-segment missing from write-datoms task-map." task-map))))
 
-;;;;;;;;;;;;;
-;;;;;;;;;;;;;
-;; input plugins
-
 (defn unroll-datom
   "Turns a datom into a vector of :eavt+op."
   [db datom]
@@ -93,6 +89,10 @@
    (:v datom)
    (:tx datom)
    (:added datom)])
+
+;;;;;;;;;;;;;
+;;;;;;;;;;;;;
+;; Read Datoms Input / Index Plugin
 
 (defn datoms-sequence [db task-map]
   (case (:onyx/plugin task-map)
