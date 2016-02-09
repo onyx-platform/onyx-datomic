@@ -81,9 +81,6 @@
   [[:read-datoms :query]
    [:query :persist]])
 
-(defn restartable? [& args]
-  true)
-
 (def catalog
   [{:onyx/name :read-datoms
     :onyx/plugin :onyx.plugin.datomic/read-datoms
@@ -126,7 +123,7 @@
                              (when (zero? (mod (swap! batch-num inc) 3))
                                (Thread/sleep 3000) 
                                (throw (ex-info "Restartable" {:restartable? true}))))
-   :lifecycle/handle-exception restartable?})
+   :lifecycle/handle-exception (constantly true)})
 
 (def lifecycles
   [{:lifecycle/task :read-datoms
