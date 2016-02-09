@@ -123,7 +123,7 @@
                              (when (zero? (mod (swap! batch-num inc) 3))
                                (Thread/sleep 3000) 
                                (throw (ex-info "Restartable" {:restartable? true}))))
-   :lifecycle/handle-exception (constantly true)})
+   :lifecycle/handle-exception (constantly :restart)})
 
 (def lifecycles
   [{:lifecycle/task :read-datoms
