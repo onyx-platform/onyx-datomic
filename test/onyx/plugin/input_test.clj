@@ -3,6 +3,7 @@
             [onyx.plugin.core-async :refer [take-segments!]]
             [onyx.plugin.datomic]
             [onyx.api]
+            [taoensso.timbre :refer [info debug fatal]]
             [midje.sweet :refer :all]
             [datomic.api :as d]))
 
@@ -82,7 +83,9 @@
 
 (def catalog
   [{:onyx/name :read-datoms
-    :onyx/plugin :onyx.plugin.datomic/read-datoms
+    :onyx/plugin :onyx.plugin.timeout-reader/new-timeout-input
+    ;:onyx/plugin :onyx.plugin.buffered-reader/new-buffered-input
+    :simple-input/build-input :onyx.plugin.datomic/read-datoms
     :onyx/type :input
     :onyx/medium :datomic
     :datomic/uri db-uri
@@ -112,7 +115,6 @@
 
 (def persist-calls
   {:lifecycle/before-task-start inject-persist-ch})
-
 
 (def lifecycles
   [{:lifecycle/task :read-datoms

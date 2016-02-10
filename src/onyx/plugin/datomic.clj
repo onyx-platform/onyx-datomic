@@ -2,8 +2,9 @@
   (:require [clojure.core.async :refer [chan >! >!! <!! close! thread timeout alts!! go-loop sliding-buffer]]
             [datomic.api :as d]
 
-            [onyx.plugin.simple-input :refer [->Next]]
+            [onyx.plugin.simple-input :refer [->SegmentOffset]]
             [onyx.plugin.buffered-reader :as buffered-reader]
+            [onyx.plugin.timeout-reader :as timeout-reader]
 
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.peer.function :as function]
@@ -95,7 +96,7 @@
 ;; Read Datoms Input / Index Plugin
 
 (defn datoms-sequence [db task-map]
-  (case (:onyx/plugin task-map)
+  (case (:simple-input/build-input task-map)
     ::read-datoms
     (let [_ (s/validate DatomicReadDatomsTaskMap task-map)
           datoms-components (or (:datomic/datoms-components task-map) [])
@@ -120,8 +121,8 @@
     (swap! top-chunk-index max chunk-index)
     (swap! pending-chunk-indices conj chunk-index)))
 
-(defrecord ReadDatoms [task-map unroll db conn datoms-per-segment datoms 
-                       top-chunk-index top-acked-chunk-index pending-chunk-indices drained?]
+(defrecord ReadDatoms [event task-map unroll db conn datoms-per-segment datoms curr-offset
+                       top-acked-chunk-index pending-chunk-indices drained?]
   onyx.plugin.simple-input/SimpleInput
   (start [this]
     (let [conn (safe-connect task-map)
@@ -130,7 +131,7 @@
              :db db
              :conn conn 
              :drained? (atom false)
-             :top-chunk-index (atom -1)
+             :curr-offset (atom -1)
              :top-acked-chunk-index (atom -1)
              :pending-chunk-indices (atom #{})
              :unroll (partial unroll-datom db)
@@ -139,49 +140,31 @@
   (stop [this] (assoc this :conn nil :datoms nil))
   (segment-complete! [this segment])
   (checkpoint [this]
-    {:chunk-index @top-acked-chunk-index :status :incomplete})
-  (checkpoint-segment! [this chunk-index]
-    (when chunk-index
-      (swap! top-chunk-index max chunk-index)
-      (swap! pending-chunk-indices conj chunk-index)))
-  (checkpoint-ack! [this chunk-index]
-    (swap! pending-chunk-indices disj chunk-index)
-    (let [new-top-acked (highest-acked-chunk @top-acked-chunk-index @top-chunk-index @pending-chunk-indices)]
+    @top-acked-chunk-index)
+  (checkpoint-ack! [this offset]
+    (swap! pending-chunk-indices disj offset)
+    (let [new-top-acked (highest-acked-chunk @top-acked-chunk-index offset @pending-chunk-indices)]
       (reset! top-acked-chunk-index new-top-acked)))
-  (recover! [this {:keys [chunk-index] :as content}]
-    (reset! top-acked-chunk-index chunk-index)
-    (reset! top-chunk-index chunk-index)
-    (swap! datoms (fn [s] (drop (* datoms-per-segment chunk-index) s))))
-  (next-segment! [this prev-chunk]
+  (recover! [this offset]
+    (reset! top-acked-chunk-index offset)
+    (reset! curr-offset offset)
+    (swap! datoms (fn [s] (drop (* datoms-per-segment offset) s))))
+  (next-segment! [this]
     (let [vs (take datoms-per-segment @datoms)]
       (if-not (empty? vs)
-        (do (swap! datoms (fn [ds] (drop datoms-per-segment ds)))
-            (->Next {:datoms (map unroll vs)} 
-                    (inc prev-chunk)))
-        (->Next :done nil)))))
+        (let [new-offset (swap! curr-offset inc)]
+          (swap! datoms (fn [ds] (drop datoms-per-segment ds)))
+          (swap! pending-chunk-indices conj new-offset)
+          (->SegmentOffset {:datoms (map unroll vs)} new-offset))
+        (->SegmentOffset :done nil)))))
 
-(defn shared-input-builder [event]
-  (let [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id]} event
-        max-pending (arg-or-default :onyx/max-pending task-map)
-        batch-size (:onyx/batch-size task-map)
-        batch-timeout (arg-or-default :onyx/batch-timeout task-map)
-        read-ch (chan (or (:datomic/read-buffer task-map) 1000))
-        reader (onyx.plugin.simple-input/start (map->ReadDatoms {:task-map task-map}))]
-    (buffered-reader/->BufferedInput reader
-                                     log
-                                     task-id
-                                     max-pending 
-                                     batch-size 
-                                     batch-timeout
-                                     (atom {})
-                                     (atom false)
-                                     read-ch)))
+(defn read-datoms [{:keys [onyx.core/task-map] :as event}]
+  (map->ReadDatoms {:event event
+                    :task-map task-map}))
 
-(defn read-datoms [pipeline-data]
-  (shared-input-builder pipeline-data))
-
-(defn read-index-range [pipeline-data]
-  (shared-input-builder pipeline-data))
+(defn read-index-range [{:keys [onyx.core/task-map] :as event}]
+  (map->ReadDatoms {:event event
+                    :task-map task-map}))
 
 (defn inject-read-datoms-resources [{:keys [onyx.core/task-map] :as event} lifecycle]
   (when-not (or (= 1 (:onyx/max-peers task-map))
@@ -190,12 +173,22 @@
   {})
 
 (def read-datoms-calls
-  {:lifecycle/before-task-start (fn [event lifecycle] 
-                                  (as-> event e
-                                    (inject-read-datoms-resources e lifecycle)
-                                    (merge event e)
-                                    (buffered-reader/inject-buffered-reader e lifecycle)))
-   :lifecycle/after-task-stop buffered-reader/close-buffered-reader})
+  {:lifecycle/before-task-start (fn read-datoms-before-task-start [event lifecycle] 
+                                  (let [plugin (get-in event [:onyx.core/task-map :onyx/plugin])
+                                        injected (inject-read-datoms-resources event lifecycle)
+                                        event (merge event injected)] 
+                                    (case plugin
+                                      :onyx.plugin.timeout-reader/new-timeout-input
+                                      (merge injected (timeout-reader/inject-timeout-reader event lifecycle))
+                                      :onyx.plugin.buffered-reader/new-buffered-input
+                                      (merge injected (buffered-reader/inject-buffered-reader event lifecycle)))))
+   :lifecycle/after-task-stop (fn read-datoms-after-task-stop [event lifecycle] 
+                                (let [plugin (get-in event [:onyx.core/task-map :onyx/plugin])] 
+                                  (case plugin
+                                    :onyx.plugin.timeout-reader/new-timeout-input
+                                    (timeout-reader/close-timeout-reader event lifecycle)
+                                    :onyx.plugin.buffered-reader/new-buffered-input
+                                    (buffered-reader/close-buffered-reader event lifecycle))))})
 
 (def read-index-range-calls
   read-datoms-calls)
