@@ -83,8 +83,8 @@
 
 (def catalog
   [{:onyx/name :read-datoms
-    :onyx/plugin :onyx.plugin.timeout-reader/new-timeout-input
-    ;:onyx/plugin :onyx.plugin.buffered-reader/new-buffered-input
+    ;:onyx/plugin :onyx.plugin.timeout-reader/new-timeout-input
+    :onyx/plugin :onyx.plugin.buffered-reader/new-buffered-input
     :simple-input/build-input :onyx.plugin.datomic/read-datoms
     :onyx/type :input
     :onyx/medium :datomic

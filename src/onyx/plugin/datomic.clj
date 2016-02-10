@@ -121,7 +121,7 @@
     (swap! top-chunk-index max chunk-index)
     (swap! pending-chunk-indices conj chunk-index)))
 
-(defrecord ReadDatoms [event task-map unroll db conn datoms-per-segment datoms curr-offset
+(defrecord ReadDatoms [event task-map unroll db conn datoms-per-segment datoms curr-offset segment
                        top-acked-chunk-index pending-chunk-indices drained?]
   onyx.plugin.simple-input/SimpleInput
   (start [this]
@@ -130,33 +130,40 @@
       (assoc this
              :db db
              :conn conn 
-             :drained? (atom false)
-             :curr-offset (atom -1)
-             :top-acked-chunk-index (atom -1)
-             :pending-chunk-indices (atom #{})
+             :drained? false
+             :curr-offset -1
+             :top-acked-chunk-index -1
+             :pending-chunk-indices #{}
              :unroll (partial unroll-datom db)
              :datoms-per-segment (safe-datoms-per-segment task-map)
-             :datoms (atom (datoms-sequence db task-map)))))
+             :datoms (datoms-sequence db task-map))))
   (stop [this] (assoc this :conn nil :datoms nil))
   (segment-complete! [this segment])
   (checkpoint [this]
-    @top-acked-chunk-index)
-  (checkpoint-ack! [this offset]
-    (swap! pending-chunk-indices disj offset)
-    (let [new-top-acked (highest-acked-chunk @top-acked-chunk-index offset @pending-chunk-indices)]
-      (reset! top-acked-chunk-index new-top-acked)))
-  (recover! [this offset]
-    (reset! top-acked-chunk-index offset)
-    (reset! curr-offset offset)
-    (swap! datoms (fn [s] (drop (* datoms-per-segment offset) s))))
-  (next-segment! [this]
-    (let [vs (take datoms-per-segment @datoms)]
+    top-acked-chunk-index)
+  (segment [this]
+    segment)
+  (offset [this]
+    curr-offset)
+  (checkpoint-ack [this offset]
+    (-> this 
+        (update :pending-chunk-indices disj offset)
+        (assoc :top-acked-chunk-index (highest-acked-chunk top-acked-chunk-index offset pending-chunk-indices))))
+  (recover [this offset]
+    (-> this
+        (assoc :top-acked-chunk-index offset)
+        (assoc :curr-offset offset)
+        (update :datoms (fn [s] (drop (* datoms-per-segment offset) s)))))
+  (next-state [this]
+    (let [vs (take datoms-per-segment datoms)]
       (if-not (empty? vs)
-        (let [new-offset (swap! curr-offset inc)]
-          (swap! datoms (fn [ds] (drop datoms-per-segment ds)))
-          (swap! pending-chunk-indices conj new-offset)
-          (->SegmentOffset {:datoms (map unroll vs)} new-offset))
-        (->SegmentOffset :done nil)))))
+        (let [new-offset (inc (:curr-offset this))]
+          (-> this
+              (assoc :segment {:datoms (map unroll vs)})
+              (assoc :curr-offset new-offset)
+              (update :datoms (fn [ds] (drop datoms-per-segment ds)))
+              (update :pending-chunk-indices conj new-offset)))
+        (assoc this :segment :done)))))
 
 (defn read-datoms [{:keys [onyx.core/task-map] :as event}]
   (map->ReadDatoms {:event event
