@@ -1,10 +1,11 @@
 (ns onyx.plugin.datomic
-  (:require [clojure.core.async :refer [chan >! >!! <!! close! thread timeout alts!! go-loop sliding-buffer]]
+  (:require [clojure.core.async :refer [chan >! >!! <!! poll! offer! close! thread timeout alts!! go-loop sliding-buffer]]
             [datomic.api :as d]
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.peer.function :as function]
             [onyx.types :as t]
             [onyx.static.default-vals :refer [defaults]]
+	    [clojure.core.async.impl.protocols :refer [closed?]]
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
             [schema.core :as s]
@@ -117,6 +118,18 @@
   (close! producer-ch)
   {})
 
+(defn >!!-safe 
+  "Works around an issue in >!! where >!! is still blocked
+  after the channel is closed."
+  [ch v]
+  (loop []
+    (if-not (offer! ch v)
+      (do (Thread/sleep 1)
+          (if (closed? ch)
+            false
+            (recur)))
+      true)))
+
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (or (= 1 (:onyx/max-peers task-map))
@@ -141,9 +154,10 @@
                                    datoms (seq (drop num-ignored
                                                      (datoms-sequence db task-map)))]
                               (when datoms
-                                (let [success? (>!! ch (assoc (t/input (random-uuid)
-                                                                       {:datoms (map unroll (take datoms-per-segment datoms))})
-                                                              :chunk-index chunk-index))]
+                                (let [input (assoc (t/input (random-uuid)
+                                                            {:datoms (map unroll (take datoms-per-segment datoms))})
+                                                   :chunk-index chunk-index)
+                                      success? (>!!-safe ch input)]
                                   (if success?
                                     (recur (inc chunk-index)
                                            (seq (drop datoms-per-segment datoms)))))))
@@ -310,6 +324,11 @@
     (throw (Exception. "Restarted task, however it was already completed for this job.
                        This is currently unhandled."))))
 
+(defn log-entry->segment [entry]
+  (update (into {} entry)
+          :data
+          (partial map unroll-log-datom)))
+
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (or (= 1 (:onyx/max-peers task-map))
@@ -343,14 +362,11 @@
                                                                   (d/tx-range (d/log conn) tx-index nil))))]
                                          (let [last-t (:t (last entries))
                                                next-t (inc last-t)]
-                                           (doseq [entry (filter #(or (nil? max-tx)
-                                                                      (< (:t %) max-tx))
-                                                                 entries)]
-                                             (>!! read-ch
-                                                  (t/input (random-uuid)
-                                                           (update (into {} entry)
-                                                                   :data
-                                                                   (partial map unroll-log-datom)))))
+                                           (doseq [entry (if (nil? max-tx)
+                                                           entries
+                                                           (filter #(< (:t %) max-tx)
+                                                                   entries))]
+                                             (>!!-safe read-ch (t/input (random-uuid) (log-entry->segment entry))))
                                            (if (or (nil? max-tx)
                                                    (< last-t max-tx))
                                              (recur next-t initial-backoff)))
