@@ -161,10 +161,10 @@
                                   (if success?
                                     (recur (inc chunk-index)
                                            (seq (drop datoms-per-segment datoms)))))))
-                            (>!! ch (t/input (random-uuid) :done))
+                            (>!!-safe ch (t/input (random-uuid) :done))
                             (catch Exception e
                               ;; feedback exception to read-batch
-                              (>!! ch e))))]
+                              (>!!-safe ch e))))]
 
         {:datomic/read-ch ch
          :datomic/commit-ch (:commit-ch pipeline)
@@ -240,7 +240,7 @@
   (retry-segment
     [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
-      (>!! read-ch (assoc msg :id (random-uuid))))
+      (>!!-safe read-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
@@ -375,10 +375,10 @@
                                            (recur tx-index next-backoff)))
                                        :shutdown))]
                           (if-not (= exit :shutdown)
-                            (>!! read-ch (t/input (random-uuid) :done))))
+                            (>!!-safe read-ch (t/input (random-uuid) :done))))
                         (catch Exception e
                           ;; feedback exception to read-batch
-                          (>!! read-ch e))))]
+                          (>!!-safe read-ch e))))]
 
     {:datomic/read-ch read-ch
      :datomic/shutdown-ch shutdown-ch
@@ -443,7 +443,7 @@
   (retry-segment
     [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
-      (>!! read-ch (assoc msg :id (random-uuid))))
+      (>!!-safe read-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
