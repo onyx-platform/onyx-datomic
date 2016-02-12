@@ -114,21 +114,10 @@
 (defn close-read-datoms-resources
   [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
   (close! read-ch)
+  (while (poll! read-ch))
   (close! commit-ch)
   (close! producer-ch)
   {})
-
-(defn >!!-safe 
-  "Works around an issue in >!! where >!! is still blocked
-  after the channel is closed."
-  [ch v]
-  (loop []
-    (if-not (offer! ch v)
-      (do (Thread/sleep 1)
-          (if (closed? ch)
-            false
-            (recur)))
-      true)))
 
 (defn inject-read-datoms-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
@@ -157,14 +146,14 @@
                                 (let [input (assoc (t/input (random-uuid)
                                                             {:datoms (map unroll (take datoms-per-segment datoms))})
                                                    :chunk-index chunk-index)
-                                      success? (>!!-safe ch input)]
+                                      success? (>!! ch input)]
                                   (if success?
                                     (recur (inc chunk-index)
                                            (seq (drop datoms-per-segment datoms)))))))
-                            (>!!-safe ch (t/input (random-uuid) :done))
+                            (>!! ch (t/input (random-uuid) :done))
                             (catch Exception e
                               ;; feedback exception to read-batch
-                              (>!!-safe ch e))))]
+                              (>!! ch e))))]
 
         {:datomic/read-ch ch
          :datomic/commit-ch (:commit-ch pipeline)
@@ -240,7 +229,7 @@
   (retry-segment
     [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
-      (>!!-safe read-ch (assoc msg :id (random-uuid))))
+      (>!! read-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
@@ -291,6 +280,7 @@
 (defn close-read-log-resources
   [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch datomic/shutdown-ch] :as event} lifecycle]
   (close! read-ch)
+  (while (poll! read-ch))
   (close! commit-ch)
   (close! shutdown-ch)
   (<!! producer-ch)
@@ -366,7 +356,7 @@
                                                            entries
                                                            (filter #(< (:t %) max-tx)
                                                                    entries))]
-                                             (>!!-safe read-ch (t/input (random-uuid) (log-entry->segment entry))))
+                                             (>!! read-ch (t/input (random-uuid) (log-entry->segment entry))))
                                            (if (or (nil? max-tx)
                                                    (< last-t max-tx))
                                              (recur next-t initial-backoff)))
@@ -375,10 +365,10 @@
                                            (recur tx-index next-backoff)))
                                        :shutdown))]
                           (if-not (= exit :shutdown)
-                            (>!!-safe read-ch (t/input (random-uuid) :done))))
+                            (>!! read-ch (t/input (random-uuid) :done))))
                         (catch Exception e
                           ;; feedback exception to read-batch
-                          (>!!-safe read-ch e))))]
+                          (>!! read-ch e))))]
 
     {:datomic/read-ch read-ch
      :datomic/shutdown-ch shutdown-ch
@@ -443,7 +433,7 @@
   (retry-segment
     [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
-      (>!!-safe read-ch (assoc msg :id (random-uuid))))
+      (>!! read-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
