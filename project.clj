@@ -13,7 +13,7 @@
                              :sign-releases false}}
   :dependencies [[org.clojure/clojure "1.7.0"]
                  ^{:voom {:repo "git@github.com:onyx-platform/onyx.git" :branch "master"}}
-                 [org.onyxplatform/onyx "0.8.11-20160212_145154-gb68ad1e"]]
+                 [org.onyxplatform/onyx "0.8.11-20160218_020541-g53a75db"]]
   :profiles {:dev {:dependencies [[midje "1.7.0"]
                                   [com.datomic/datomic-free "0.9.5153"]]
                    :plugins [[lein-midje "3.1.3"]
