@@ -49,8 +49,6 @@
   (s/->Both [os/TaskMap 
              {:datomic/uri s/Str
               (s/optional-key :datomic/partition) (s/either s/Int s/Keyword)
-              (s/optional-key :onyx/max-peers) (s/enum 1)
-              (s/optional-key :onyx/n-peers) (s/enum 1)
               UserTaskMapKey s/Any}]))
 
 (s/defn read-log
