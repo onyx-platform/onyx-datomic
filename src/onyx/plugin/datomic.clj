@@ -255,7 +255,7 @@
                        :datomic/log-end-tx end-tx
                        :checkpointed-tx checkpoint-tx})))
     (when (and end-tx (>= checkpoint-tx end-tx))
-      (throw (ex-info "Checkpointed transaction is greater than :datomic/log-start-tx"
+      (throw (ex-info "Checkpointed transaction is greater than :datomic/log-end-tx"
                       {:datomic/log-start-tx start-tx
                        :datomic/log-end-tx end-tx
                        :checkpointed-tx checkpoint-tx})))))
