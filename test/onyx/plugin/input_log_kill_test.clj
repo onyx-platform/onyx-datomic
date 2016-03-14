@@ -73,8 +73,7 @@
       (ensure-datomic! db-uri people2))))
 
 (deftest ^:ci datomic-input-log-kill-test
-  (let [
-        {:keys [env-config peer-config datomic-config]}
+  (let [{:keys [env-config peer-config datomic-config]}
         (read-config (clojure.java.io/resource "config.edn") {:profile :test})
         db-uri (str (:datomic/config datomic-config) (java.util.UUID/randomUUID))
         job (build-job db-uri 10 1000)
