@@ -76,7 +76,7 @@
   (let [
         {:keys [env-config peer-config datomic-config]}
         (read-config (clojure.java.io/resource "config.edn") {:profile :test})
-        db-uri (str (:datomic-config datomic-config) (java.util.UUID/randomUUID))
+        db-uri (str (:datomic/config datomic-config) (java.util.UUID/randomUUID))
         job (build-job db-uri 10 1000)
         {:keys [persist]} (core-async/get-core-async-channels job)
         job-id (atom nil)
