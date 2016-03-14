@@ -1,15 +1,14 @@
 (ns onyx.plugin.input-datoms-components-test
   (:require [aero.core :refer [read-config]]
             [clojure.test :refer [deftest is]]
+            [datomic.api :as d]
             [onyx api
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
-            [onyx.datomic.tasks :refer [read-datomic-datoms]]
-            [onyx.plugin
+            [onyx.plugin datomic
              [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]
-             [datomic]]
-            [datomic.api :as d]))
+             [core-async-tasks :as core-async]]
+            [onyx.tasks.datomic :refer [read-datoms]]))
 
 (defn build-job [db-uri t batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -21,14 +20,14 @@
                          :flow-conditions []
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
-        (add-task (read-datomic-datoms :read-datoms
-                                       (merge {:datomic/uri db-uri
-                                               :datomic/t t
-                                               :datomic/datoms-index :avet
-                                               :datomic/datoms-per-segment 20
-                                               :datomic/datoms-components [:user/name "Mike"]
-                                               :onyx/max-peers 1}
-                                              batch-settings)))
+        (add-task (read-datoms :read-datoms
+                                (merge {:datomic/uri db-uri
+                                        :datomic/t t
+                                        :datomic/datoms-index :avet
+                                        :datomic/datoms-per-segment 20
+                                        :datomic/datoms-components [:user/name "Mike"]
+                                        :onyx/max-peers 1}
+                                       batch-settings)))
         (add-task (core-async/output-task :persist batch-settings)))))
 
 (defn ensure-datomic!

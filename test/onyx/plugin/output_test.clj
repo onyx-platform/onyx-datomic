@@ -1,17 +1,16 @@
 (ns onyx.plugin.output-test
   (:require [aero.core :refer [read-config]]
-            [clojure.test :refer [deftest is]]
             [clojure.core.async :refer [pipe]]
             [clojure.core.async.lab :refer [spool]]
-            [onyx api
+            [clojure.test :refer [deftest is]]
+            [datomic.api :as d]
+            [onyx api 
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
-            [onyx.datomic.tasks :refer [write-datoms]]
-            [onyx.plugin
+            [onyx.plugin datomic 
              [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]
-             [datomic]]
-            [datomic.api :as d]))
+             [core-async-tasks :as core-async]]
+            [onyx.tasks.datomic :refer [write-datoms]]))
 
 (defn build-job [db-uri batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}

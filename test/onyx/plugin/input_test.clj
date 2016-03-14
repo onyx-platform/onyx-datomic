@@ -1,16 +1,14 @@
 (ns onyx.plugin.input-test
   (:require [aero.core :refer [read-config]]
             [clojure.test :refer [deftest is]]
+            [datomic.api :as d]
             [onyx api
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
-            [onyx.datomic.tasks :refer [read-datomic-datoms]]
-            [onyx.plugin
+            [onyx.plugin datomic
              [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]
-             [datomic]]
-            [datomic.api :as d]))
-
+             [core-async-tasks :as core-async]]
+            [onyx.tasks.datomic :refer [read-datoms]]))
 
 (def query '[:find ?a :where
              [?e :user/name ?a]
@@ -35,7 +33,7 @@
                          :flow-conditions []
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
-        (add-task (read-datomic-datoms :read-datoms
+        (add-task (read-datoms :read-datoms
                                        (merge {:datomic/uri db-uri
                                                :datomic/t t
                                                :datomic/datoms-index :eavt

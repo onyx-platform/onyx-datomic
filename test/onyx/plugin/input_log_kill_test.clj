@@ -1,16 +1,14 @@
 (ns onyx.plugin.input-log-kill-test
   (:require [aero.core :refer [read-config]]
             [clojure.test :refer [deftest is testing]]
+            [datomic.api :as d]
             [onyx api
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
-            [onyx.datomic.tasks :refer [read-datomic-log]]
-            [onyx.plugin
+            [onyx.plugin datomic
              [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]
-             [datomic]]
-            [datomic.api :as d]))
-
+             [core-async-tasks :as core-async]]
+            [onyx.tasks.datomic :refer [read-log]]))
 
 (defn build-job [db-uri batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -22,12 +20,12 @@
                          :flow-conditions []
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
-        (add-task (read-datomic-log :read-log
-                                    (merge {:datomic/uri db-uri
-                                            :checkpoint/key "checkpoint"
-                                            :checkpoint/force-reset? false
-                                            :onyx/max-peers 1}
-                                           batch-settings)))
+        (add-task (read-log :read-log
+                            (merge {:datomic/uri db-uri
+                                    :checkpoint/key "checkpoint"
+                                    :checkpoint/force-reset? false
+                                    :onyx/max-peers 1}
+                                   batch-settings)))
         (add-task (core-async/output-task :persist batch-settings)))))
 
 (defn ensure-datomic!
@@ -75,9 +73,10 @@
       (ensure-datomic! db-uri people2))))
 
 (deftest ^:ci datomic-input-log-kill-test
-  (let [db-uri (str "datomic:free://localhost:4334/" (java.util.UUID/randomUUID))
-        {:keys [env-config peer-config]}
+  (let [
+        {:keys [env-config peer-config datomic-config]}
         (read-config (clojure.java.io/resource "config.edn") {:profile :test})
+        db-uri (str (:datomic-config datomic-config) (java.util.UUID/randomUUID))
         job (build-job db-uri 10 1000)
         {:keys [persist]} (core-async/get-core-async-channels job)
         job-id (atom nil)

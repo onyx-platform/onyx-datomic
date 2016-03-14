@@ -1,15 +1,14 @@
 (ns onyx.plugin.input-index-range-test
   (:require [aero.core :refer [read-config]]
             [clojure.test :refer [deftest is]]
-            [onyx api
+            [datomic.api :as d]
+            [onyx api 
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
-            [onyx.datomic.tasks :refer [read-index-range]]
-            [onyx.plugin
+            [onyx.plugin datomic 
              [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]
-             [datomic]]
-            [datomic.api :as d]))
+             [core-async-tasks :as core-async]]
+            [onyx.tasks.datomic :refer [read-index-range]]))
 
 (defn build-job [db-uri t batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}

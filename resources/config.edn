@@ -24,4 +24,6 @@
   :onyx.messaging/peer-port              40200
   :onyx.messaging.aeron/embedded-driver? #cond {:default false
                                                 :test true}
-  :onyx.messaging/backpressure-strategy :high-restart-latency}}
+  :onyx.messaging/backpressure-strategy :high-restart-latency}
+ :datomic-config
+ {:datomic/uri "datomic:free://localhost:4334/"}}

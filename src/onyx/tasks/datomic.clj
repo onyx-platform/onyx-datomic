@@ -1,4 +1,4 @@
-(ns onyx.plugin.tasks.datomic
+(ns onyx.tasks.datomic
   (:require [schema.core :as s]
             [onyx.schema :as os]
             [taoensso.timbre :refer [info debug fatal]]))
