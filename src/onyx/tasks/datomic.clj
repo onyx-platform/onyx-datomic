@@ -155,3 +155,21 @@
     task-opts :- {s/Any s/Any}]
    (write-datoms task-name (merge {:datomic/uri uri}
                                   task-opts))))
+
+(s/defn ^:always-validate write-bulk-tx-datoms-async
+  ([task-name :- s/Keyword opts]
+   {:task {:task-map (merge {:onyx/name task-name
+                             :onyx/plugin :onyx.plugin.datomic/write-bulk-datoms-async
+                             :onyx/type :output
+                             :onyx/medium :datomic
+                             :onyx/doc "Transacts segments to storage asynchronously."}
+                            opts)
+           :lifecycles [{:lifecycle/task task-name
+                         :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-async-calls}]}
+    :schema {:task-map DatomicWriteDatomsTaskMap
+             :lifecycles [os/Lifecycle]}})
+  ([task-name :- s/Keyword
+    uri :- s/Str
+    task-opts :- {s/Any s/Any}]
+   (write-bulk-tx-datoms-async task-name (merge {:datomic/uri uri}
+                                                task-opts))))

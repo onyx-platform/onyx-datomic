@@ -18,10 +18,8 @@
   :test-selectors {:default (complement :ci)
                    :ci :ci
                    :all (constantly true)}
-  :profiles {:dev {:dependencies [[midje "1.7.0"]
-                                  [com.datomic/datomic-free "0.9.5153"]]
-                   :plugins [[lein-midje "3.1.3"]
-                             [lein-set-version "0.4.1"]
+  :profiles {:dev {:dependencies [[com.datomic/datomic-free "0.9.5153"]]
+                   :plugins [[lein-set-version "0.4.1"]
                              [lein-update-dependency "0.1.2"]
                              [lein-pprint "1.1.1"]]}
              :circle-ci {:jvm-opts ["-Xmx4g"]}})
