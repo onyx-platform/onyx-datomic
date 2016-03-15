@@ -6,9 +6,10 @@
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
             [onyx.plugin datomic
-             [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]]
-            [onyx.tasks.datomic :refer [read-log]]))
+             [core-async :refer [take-segments! get-core-async-channels]]]
+            [onyx.tasks
+             [datomic :refer [read-log]]
+             [core-async :as core-async]]))
 
 (defn build-job [db-uri batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -26,7 +27,7 @@
                                     :checkpoint/force-reset? false
                                     :onyx/max-peers 1}
                                    batch-settings)))
-        (add-task (core-async/output-task :persist batch-settings)))))
+        (add-task (core-async/output :persist batch-settings)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -77,7 +78,7 @@
         (read-config (clojure.java.io/resource "config.edn") {:profile :test})
         db-uri (str (:datomic/uri datomic-config) (java.util.UUID/randomUUID))
         job (build-job db-uri 10 1000)
-        {:keys [persist]} (core-async/get-core-async-channels job)
+        {:keys [persist]} (get-core-async-channels job)
         job-id (atom nil)
         tx-thread (atom nil)]
     (try

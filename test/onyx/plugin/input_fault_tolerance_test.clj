@@ -7,9 +7,10 @@
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
             [onyx.plugin datomic
-             [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]]
-            [onyx.tasks.datomic :refer [read-datoms]]))
+             [core-async :refer [take-segments! get-core-async-channels]]]
+            [onyx.tasks
+             [datomic :refer [read-datoms]]
+             [core-async :as core-async]]))
 
 (def query '[:find ?a :where
              [?e :user/name ?a]
@@ -46,13 +47,13 @@
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
         (add-task (read-datoms :read-datoms
-                               (merge {:datomic/uri db-uri
-                                       :datomic/t t
-                                       :datomic/datoms-index :eavt
-                                       :datomic/datoms-per-segment 1
-                                       :onyx/max-peers 1}
-                                      batch-settings)))
-        (add-task (core-async/output-task :persist batch-settings)))))
+                                (merge {:datomic/uri db-uri
+                                        :datomic/t t
+                                        :datomic/datoms-index :eavt
+                                        :datomic/datoms-per-segment 1
+                                        :onyx/max-peers 1}
+                                       batch-settings)))
+        (add-task (core-async/output :persist batch-settings)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -92,7 +93,7 @@
         _ (mapv (partial ensure-datomic! db-uri) [[] schema people])
         t (d/next-t (d/db (d/connect db-uri)))
         job (build-job db-uri t 20 1000)
-        {:keys [persist]} (core-async/get-core-async-channels job)]
+        {:keys [persist]} (get-core-async-channels job)]
     (try
       (with-test-env [test-env [4 env-config peer-config]]
         (onyx.test-helper/validate-enough-peers! test-env job)

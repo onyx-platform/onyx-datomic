@@ -6,9 +6,10 @@
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
             [onyx.plugin datomic
-             [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]]
-            [onyx.tasks.datomic :refer [read-log]]))
+             [core-async :refer [take-segments! get-core-async-channels]]]
+            [onyx.tasks
+             [datomic :refer [read-log]]
+             [core-async :as core-async]]))
 
 (defn build-job [db-uri log-end-tx batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -27,7 +28,7 @@
                                     :onyx/max-peers 1
                                     :datomic/log-end-tx log-end-tx}
                                    batch-settings)))
-        (add-task (core-async/output-task :persist batch-settings)))))
+        (add-task (core-async/output :persist batch-settings)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -92,7 +93,7 @@
       (with-test-env [test-env [4 env-config peer-config]]
         (testing "That we can read the initial transaction log"
           (let [job (build-job db-uri 1002 10 1000)
-                {:keys [persist]} (core-async/get-core-async-channels job)
+                {:keys [persist]} (get-core-async-channels job)
                 job-id (atom nil)]
             (mapv (partial ensure-datomic! db-uri) [schema people])
             (reset! job-id (:job-id (onyx.api/submit-job peer-config job)))
@@ -122,7 +123,7 @@
         (Thread/sleep 5000)
         (testing "That checkpointing picks up where we left off"
           (let [job (build-job db-uri 1014 10 1000)
-                {:keys [persist]} (core-async/get-core-async-channels job)
+                {:keys [persist]} (get-core-async-channels job)
                 job-id (atom nil)]
             (mapv (partial ensure-datomic! db-uri) [people3 people4 people4 people4])
             (reset! job-id (:job-id (onyx.api/submit-job peer-config job)))

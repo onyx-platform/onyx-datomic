@@ -2,13 +2,14 @@
   (:require [aero.core :refer [read-config]]
             [clojure.test :refer [deftest is]]
             [datomic.api :as d]
-            [onyx api 
+            [onyx api
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
-            [onyx.plugin datomic 
-             [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]]
-            [onyx.tasks.datomic :refer [read-index-range]]))
+            [onyx.plugin datomic
+             [core-async :refer [take-segments! get-core-async-channels]]]
+            [onyx.tasks
+             [datomic :refer [read-index-range]]
+             [core-async :as core-async]]))
 
 (defn build-job [db-uri t batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -29,7 +30,7 @@
                                                :datomic/datoms-per-segment 20
                                                :onyx/max-peers 1}
                                               batch-settings)))
-        (add-task (core-async/output-task :persist batch-settings)))))
+        (add-task (core-async/output :persist batch-settings)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -79,7 +80,7 @@
         _ (mapv (partial ensure-datomic! db-uri) [[] schema people])
         t (d/next-t (d/db (d/connect db-uri)))
         job (build-job db-uri t 10 1000)
-        {:keys [persist]} (core-async/get-core-async-channels job)]
+        {:keys [persist]} (get-core-async-channels job)]
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (onyx.test-helper/validate-enough-peers! test-env job)

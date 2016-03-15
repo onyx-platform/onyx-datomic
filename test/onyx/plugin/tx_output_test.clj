@@ -8,9 +8,10 @@
              [job :refer [add-task]]
              [test-helper :refer [with-test-env]]]
             [onyx.plugin datomic
-             [core-async :refer [take-segments!]]
-             [core-async-tasks :as core-async]]
-            [onyx.tasks.datomic :refer [write-bulk-tx-datoms]]))
+             [core-async :refer [take-segments! get-core-async-channels]]]
+            [onyx.tasks
+             [datomic :refer [write-bulk-tx-datoms]]
+             [core-async :as core-async]]))
 
 (defn build-job [db-uri batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -26,7 +27,7 @@
                          :flow-conditions []
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
-        (add-task (core-async/input-task :in batch-settings))
+        (add-task (core-async/input :in batch-settings))
         (add-task (write-bulk-tx-datoms :out (merge {:datomic/uri db-uri
                                                   :datomic/partition :com.mdrogalis/people}
                                                  batch-settings))))))
@@ -81,7 +82,7 @@
                                           (clojure.java.io/resource "config.edn")
                                           {:profile :test})
         job (build-job db-uri 10 1000)
-        {:keys [in]} (core-async/get-core-async-channels job)]
+        {:keys [in]} (get-core-async-channels job)]
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (ensure-datomic! db-uri [])
