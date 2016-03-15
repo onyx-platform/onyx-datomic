@@ -38,9 +38,7 @@
                                     :onyx/type :function
                                     :onyx/batch-size batch-size
                                     :onyx/doc "Queries for names of 5 characters or fewer"}]
-                         :lifecycles [;{:lifecycle/task :read-datoms
-                                        ; :lifecycle/calls ::read-datoms-crash}
-                                      ]
+                         :lifecycles []
                          :windows []
                          :triggers []
                          :flow-conditions []

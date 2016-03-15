@@ -99,15 +99,13 @@
             (reset! job-id (:job-id (onyx.api/submit-job peer-config job)))
             (ensure-datomic! db-uri people2)
             (onyx.api/await-job-completion peer-config @job-id)
-            (is (= [{:data '(;[13194139534312 50 #inst "2015-08-19T13:27:59.237-00:00" 13194139534312 true]
-                             [63 10 :com.mdrogalis/people 13194139534312 true]
+            (is (= [{:data '([63 10 :com.mdrogalis/people 13194139534312 true]
                              [0 11 63 13194139534312 true]
                              [64 10 :user/name 13194139534312 true]
                              [64 40 23 13194139534312 true]
                              [64 41 35 13194139534312 true]
                              [0 13 64 13194139534312 true]) :t 1000}
-                    {:data '(;[13194139534313 50 #inst "2015-08-19T13:27:59.256-00:00" 13194139534313 true]
-                             [277076930200554 64 "Mike" 13194139534313 true]
+                    {:data '([277076930200554 64 "Mike" 13194139534313 true]
                              [277076930200555 64 "Dorrene" 13194139534313 true]
                              [277076930200556 64 "Benti" 13194139534313 true]
                              [277076930200557 64 "Derek" 13194139534313 true]
@@ -115,7 +113,6 @@
                    (map (fn [result]
                           (if (= result :done)
                             :done
-                            ;; drop tx datom and id
                             (-> result
                                 (update :data rest)
                                 (dissoc :id))))
@@ -137,7 +134,6 @@
                    (map (fn [result]
                           (if (= result :done)
                             :done
-                            ;; drop tx datom and id
                             (-> result
                                 (update :data rest)
                                 (dissoc :id))))

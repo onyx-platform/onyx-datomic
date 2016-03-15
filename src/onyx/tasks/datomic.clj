@@ -25,8 +25,7 @@
    {:task {:task-map (merge {:onyx/name task-name
                              :onyx/plugin :onyx.plugin.datomic/read-log
                              :onyx/type :input
-                             :onyx/medium :datomic
-                             }
+                             :onyx/medium :datomic}
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/read-log-calls}]}
