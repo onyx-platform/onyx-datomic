@@ -1,4 +1,4 @@
-(ns onyx.plugin.tx-output-test
+(ns onyx.plugin.tx-async-output-test
   (:require [aero.core :refer [read-config]]
             [clojure.core.async :refer [pipe]]
             [clojure.core.async.lab :refer [spool]]
@@ -10,7 +10,7 @@
             [onyx.plugin datomic
              [core-async :refer [take-segments! get-core-async-channels]]]
             [onyx.tasks
-             [datomic :refer [write-bulk-tx-datoms]]
+             [datomic :refer [write-bulk-tx-datoms-async]]
              [core-async :as core-async]]))
 
 (defn build-job [db-uri batch-size batch-timeout]
@@ -28,9 +28,9 @@
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
         (add-task (core-async/input :in batch-settings))
-        (add-task (write-bulk-tx-datoms :out (merge {:datomic/uri db-uri
-                                                  :datomic/partition :com.mdrogalis/people}
-                                                 batch-settings))))))
+        (add-task (write-bulk-tx-datoms-async :out (merge {:datomic/uri db-uri
+                                                           :datomic/partition :com.mdrogalis/people}
+                                                          batch-settings))))))
 
 (defn ensure-datomic!
   ([db-uri data]

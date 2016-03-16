@@ -5,12 +5,9 @@
             [onyx.peer.function :as function]
             [onyx.types :as t]
             [onyx.static.default-vals :refer [defaults]]
-	    [clojure.core.async.impl.protocols :refer [closed?]]
+            [clojure.core.async.impl.protocols :refer [closed?]]
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
-            [onyx.plugin.tasks.datomic :refer [DatomicReadLogTaskMap DatomicReadIndexRangeTaskMap 
-                                               DatomicReadDatomsTaskMap DatomicWriteDatomsTaskMap]]
-            [schema.core :as s]
             [onyx.schema :as os]
             [taoensso.timbre :refer [info debug fatal]]))
 
@@ -32,9 +29,9 @@
 
 (defn start-commit-loop! [commit-ch log k]
   (go-loop []
-           (when-let [content (<!! commit-ch)]
-             (extensions/force-write-chunk log :chunk content k)
-             (recur))))
+    (when-let [content (<!! commit-ch)]
+      (extensions/force-write-chunk log :chunk content k)
+      (recur))))
 
 ;;;;;;;;;;;;;
 ;;;;;;;;;;;;;
@@ -52,13 +49,11 @@
 (defn datoms-sequence [db task-map]
   (case (:onyx/plugin task-map)
     ::read-datoms
-    (let [_ (s/validate DatomicReadDatomsTaskMap task-map)
-          datoms-components (or (:datomic/datoms-components task-map) [])
+    (let [datoms-components (or (:datomic/datoms-components task-map) [])
           datoms-index (:datomic/datoms-index task-map)]
       (apply d/datoms db datoms-index datoms-components))
     ::read-index-range
-    (let [_ (s/validate DatomicReadIndexRangeTaskMap task-map)
-          attribute (:datomic/index-attribute task-map)
+    (let [attribute (:datomic/index-attribute task-map)
           range-start (:datomic/index-range-start task-map)
           range-end (:datomic/index-range-end task-map)]
       (d/index-range db attribute range-start range-end))))
@@ -149,11 +144,11 @@
                          read-ch commit-ch]
   p-ext/Pipeline
   (write-batch
-    [this event]
+      [this event]
     (function/write-batch event))
 
   (read-batch
-    [_ event]
+      [_ event]
     (let [pending (count (keys @pending-messages))
           max-segments (min (- max-pending pending) batch-size)
           timeout-ch (timeout batch-timeout)
@@ -163,10 +158,10 @@
         (feedback-producer-exception! m)
         (update-chunk-indices! m top-chunk-index pending-chunk-indices)
         (swap! pending-messages assoc (:id m) m))
-    (when (completed? batch pending-messages read-ch) 
-      (>!! commit-ch {:status :complete})
-      (reset! drained? true))
-    {:onyx.core/batch batch}))
+      (when (completed? batch pending-messages read-ch)
+        (>!! commit-ch {:status :complete})
+        (reset! drained? true))
+      {:onyx.core/batch batch}))
 
   p-ext/PipelineInput
 
@@ -179,17 +174,17 @@
       (swap! pending-messages dissoc segment-id)))
 
   (retry-segment
-    [_ event segment-id]
+      [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
       (>!! read-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
-    [_ _ segment-id]
+      [_ _ segment-id]
     (get @pending-messages segment-id))
 
   (drained?
-    [_ _]
+      [_ _]
     @drained?))
 
 (defn shared-input-builder [pipeline-data]
@@ -276,8 +271,6 @@
   (when-not (or (= 1 (:onyx/max-peers task-map))
                 (= 1 (:onyx/n-peers task-map)))
     (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
-  (s/validate DatomicReadLogTaskMap task-map)
-
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         {:keys [read-ch shutdown-ch commit-ch]} pipeline
@@ -299,9 +292,9 @@
                                      ;; in order to determine whether we should emit the sentinel (tx ids don't always increment)
                                      (if (first (alts!! [shutdown-ch] :default true))
                                        (if-let [entries (seq
-                                                          (take read-size
-                                                                (seq
-                                                                  (d/tx-range (d/log conn) tx-index nil))))]
+                                                         (take read-size
+                                                               (seq
+                                                                (d/tx-range (d/log conn) tx-index nil))))]
                                          (let [last-t (:t (last entries))
                                                next-t (inc last-t)]
                                            (doseq [entry (if (nil? max-tx)
@@ -344,20 +337,20 @@
 
 
 (defrecord DatomicLogInput
-  [log task-id max-pending batch-size batch-timeout pending-messages drained?
-   top-tx top-acked-tx pending-txes
-   read-ch commit-ch shutdown-ch]
+    [log task-id max-pending batch-size batch-timeout pending-messages drained?
+     top-tx top-acked-tx pending-txes
+     read-ch commit-ch shutdown-ch]
   p-ext/Pipeline
   (write-batch
-    [this event]
+      [this event]
     (function/write-batch event))
 
   (read-batch
-    [_ event]
+      [_ event]
     (let [pending (count (keys @pending-messages))
           max-segments (min (- max-pending pending) batch-size)
           timeout-ch (timeout batch-timeout)
-          batch (if (zero? max-segments) 
+          batch (if (zero? max-segments)
                   (<!! timeout-ch)
                   (->> (range max-segments)
                        (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true))))))]
@@ -383,17 +376,17 @@
       (swap! pending-messages dissoc segment-id)))
 
   (retry-segment
-    [_ event segment-id]
+      [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
       (>!! read-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
-    [_ _ segment-id]
+      [_ _ segment-id]
     (get @pending-messages segment-id))
 
   (drained?
-    [_ _]
+      [_ _]
     @drained?))
 
 (defn read-log [pipeline-data]
@@ -435,14 +428,18 @@
   [{:keys [onyx.core/pipeline]} lifecycle]
   {:datomic/conn (:conn pipeline)})
 
+(defn inject-write-bulk-tx-async-resources
+  [{:keys [onyx.core/pipeline]} lifecycle]
+  {:datomic/conn (:conn pipeline)})
+
 (defrecord DatomicWriteDatoms [conn partition]
   p-ext/Pipeline
   (read-batch
-    [_ event]
+      [_ event]
     (function/read-batch event))
 
   (write-batch
-    [_ event]
+      [_ event]
     (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
       {:datomic/written @(d/transact conn
                                      (map (fn [msg] (if (and partition (not (sequential? msg)))
@@ -452,12 +449,11 @@
        :onyx.core/written? true}))
 
   (seal-resource
-    [_ _]
+      [_ _]
     {}))
 
 (defn write-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
-        _ (s/validate DatomicWriteDatomsTaskMap task-map)
         conn (safe-connect task-map)
         partition (:datomic/partition task-map)]
     (->DatomicWriteDatoms conn partition)))
@@ -465,26 +461,49 @@
 (defrecord DatomicWriteBulkDatoms [conn]
   p-ext/Pipeline
   (read-batch
-    [_ event]
+      [_ event]
     (function/read-batch event))
 
   (write-batch
-    [_ event]
+      [_ event]
     {;; Transact each tx individually to avoid tempid conflicts.
-     :datomic/written (mapv (fn [tx] 
+     :datomic/written (mapv (fn [tx]
                               @(d/transact conn (:tx (:message tx))))
                             (mapcat :leaves (:tree (:onyx.core/results event))))
      :onyx.core/written? true})
 
   (seal-resource
-    [_ _]
+      [_ _]
     {}))
 
 (defn write-bulk-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
-        _ (s/validate DatomicWriteDatomsTaskMap task-map)
         conn (safe-connect task-map)]
     (->DatomicWriteBulkDatoms conn)))
+
+(defrecord DatomicWriteBulkDatomsAsync [conn]
+  p-ext/Pipeline
+  (read-batch
+      [_ event]
+    (function/read-batch event))
+
+  (write-batch
+      [_ event]
+    {;; Transact each tx individually to avoid tempid conflicts.
+     :datomic/written (->> (mapv (fn [tx]
+                                   (d/transact-async conn (:tx (:message tx))))
+                                 (mapcat :leaves (:tree (:onyx.core/results event))))
+                           (into [] (comp (map deref))))
+     :onyx.core/written? true})
+
+  (seal-resource
+      [_ _]
+    {}))
+
+(defn write-bulk-datoms-async [pipeline-data]
+  (let [task-map (:onyx.core/task-map pipeline-data)
+        conn (safe-connect task-map)]
+    (->DatomicWriteBulkDatomsAsync conn)))
 
 (def read-datoms-calls
   {:lifecycle/before-task-start inject-read-datoms-resources
@@ -494,13 +513,14 @@
   {:lifecycle/before-task-start inject-read-datoms-resources
    :lifecycle/after-task-stop close-read-datoms-resources})
 
-
 (def write-tx-calls
   {:lifecycle/before-task-start inject-write-tx-resources})
 
 (def write-bulk-tx-calls
   {:lifecycle/before-task-start inject-write-bulk-tx-resources})
 
+(def write-bulk-tx-async-calls
+  {:lifecycle/before-task-start inject-write-bulk-tx-async-resources})
 
 ;;;;;;;;;
 ;;; params lifecycles
