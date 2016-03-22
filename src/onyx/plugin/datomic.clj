@@ -494,7 +494,7 @@
                                    (d/transact-async conn (:tx (:message tx))))
                                  (mapcat :leaves (:tree (:onyx.core/results event))))
                            (into [] (comp (map deref))))
-     :onyx.core/written? true})
+     :datomic/written? true})
 
   (seal-resource
       [_ _]
