@@ -446,7 +446,7 @@
                                                       (assoc msg :db/id (d/tempid partition))
                                                       msg))
                                           (map :message messages)))
-       :onyx.core/written? true}))
+       :datomic/written? true}))
 
   (seal-resource
       [_ _]
@@ -470,7 +470,7 @@
      :datomic/written (mapv (fn [tx]
                               @(d/transact conn (:tx (:message tx))))
                             (mapcat :leaves (:tree (:onyx.core/results event))))
-     :onyx.core/written? true})
+     :datomic/written? true})
 
   (seal-resource
       [_ _]
@@ -494,7 +494,7 @@
                                    (d/transact-async conn (:tx (:message tx))))
                                  (mapcat :leaves (:tree (:onyx.core/results event))))
                            (into [] (comp (map deref))))
-     :onyx.core/written? true})
+     :datomic/written? true})
 
   (seal-resource
       [_ _]
