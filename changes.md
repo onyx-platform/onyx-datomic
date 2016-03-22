@@ -1,3 +1,6 @@
+#### 0.9.0
+* Switch written key in event map from onyx.core/written? to datomic/written?
+
 #### 0.8.10
 * Fix shutdown issue that could cause input tasks to not stop cleanly
 
