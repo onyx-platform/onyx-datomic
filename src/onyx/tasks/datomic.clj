@@ -2,23 +2,18 @@
   (:require [schema.core :as s]
             [onyx.schema :as os]))
 
-(def UserTaskMapKey
-  (os/build-allowed-key-ns :datomic))
-
-
 (def DatomicReadLogTaskMap
-  (s/->Both [os/TaskMap
-             {:datomic/uri (s/pred (fn [s]
-                                     (let [[_ type] (clojure.string/split s #":")]
-                                       (not= "mem" type)))
-                                   "not using in-memory datomic")
-              :checkpoint/force-reset? s/Bool
-              (s/optional-key :datomic/log-start-tx) s/Int
-              (s/optional-key :datomic/log-end-tx) s/Int
-              (s/optional-key :checkpoint/key) s/Str
-              (s/optional-key :onyx/max-peers) (s/enum 1)
-              (s/optional-key :onyx/n-peers) (s/enum 1)
-              UserTaskMapKey s/Any}]))
+  {:datomic/uri (s/pred (fn [s]
+                          (let [[_ type] (clojure.string/split s #":")]
+                            (not= "mem" type)))
+                        "not using in-memory datomic")
+   :checkpoint/force-reset? s/Bool
+   (s/optional-key :datomic/log-start-tx) s/Int
+   (s/optional-key :datomic/log-end-tx) s/Int
+   (s/optional-key :checkpoint/key) s/Str
+   (s/optional-key :onyx/max-peers) (s/enum 1)
+   (s/optional-key :onyx/n-peers) (s/enum 1)
+   (os/restricted-ns :datomic) s/Any})
 
 (s/defn ^:always-validate read-log
   ([task-name :- s/Keyword opts]
@@ -29,8 +24,7 @@
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/read-log-calls}]}
-    :schema {:task-map DatomicReadLogTaskMap
-             :lifecycles [os/Lifecycle]}})
+    :schema {:task-map DatomicReadLogTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
     force-reset? :- s/Bool
@@ -40,15 +34,14 @@
                               task-opts))))
 
 (def DatomicReadDatomsTaskMap
-  (s/->Both [os/TaskMap
-             {:datomic/uri s/Str
-              :datomic/t s/Int
-              :datomic/datoms-index s/Keyword
-              :datomic/datoms-per-segment s/Int
-              (s/optional-key :datomic/datoms-components) [s/Any]
-              (s/optional-key :onyx/max-peers) (s/enum 1)
-              (s/optional-key :onyx/n-peers) (s/enum 1)
-              UserTaskMapKey s/Any}]))
+  {:datomic/uri s/Str
+   :datomic/t s/Int
+   :datomic/datoms-index s/Keyword
+   :datomic/datoms-per-segment s/Int
+   (s/optional-key :datomic/datoms-components) [s/Any]
+   (s/optional-key :onyx/max-peers) (s/enum 1)
+   (s/optional-key :onyx/n-peers) (s/enum 1)
+   (os/restricted-ns :datomic) s/Any})
 
 (s/defn ^:always-validate read-datoms
   ([task-name :- s/Keyword opts]
@@ -59,8 +52,7 @@
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}]}
-    :schema {:task-map DatomicReadDatomsTaskMap
-             :lifecycles [os/Lifecycle]}})
+    :schema {:task-map DatomicReadDatomsTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
     t :- s/Int
@@ -75,16 +67,15 @@
                        task-opts))))
 
 (def DatomicReadIndexRangeTaskMap
-  (s/->Both [os/TaskMap
-             {:datomic/uri s/Str
-              :datomic/t s/Int
-              :datomic/index-attribute s/Any
-              :datomic/index-range-start s/Any
-              :datomic/index-range-end s/Any
-              :datomic/datoms-per-segment s/Int
-              (s/optional-key :onyx/max-peers) (s/enum 1)
-              (s/optional-key :onyx/n-peers) (s/enum 1)
-              UserTaskMapKey s/Any}]))
+  {:datomic/uri s/Str
+   :datomic/t s/Int
+   :datomic/index-attribute s/Any
+   :datomic/index-range-start s/Any
+   :datomic/index-range-end s/Any
+   :datomic/datoms-per-segment s/Int
+   (s/optional-key :onyx/max-peers) (s/enum 1)
+   (s/optional-key :onyx/n-peers) (s/enum 1)
+   (os/restricted-ns :datomic) s/Any})
 
 (s/defn ^:always-validate read-index-range
   ([task-name :- s/Keyword opts]
@@ -95,8 +86,7 @@
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/read-index-range-calls}]}
-    :schema {:task-map DatomicReadIndexRangeTaskMap
-             :lifecycles [os/Lifecycle]}})
+    :schema {:task-map DatomicReadIndexRangeTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
     t :- s/Int
@@ -114,12 +104,11 @@
                                       task-opts))))
 
 (def DatomicWriteDatomsTaskMap
-  (s/->Both [os/TaskMap
-             {:datomic/uri s/Str
-              (s/optional-key :datomic/partition) (s/either s/Int s/Keyword)
-              (s/optional-key :onyx/max-peers) (s/enum 1)
-              (s/optional-key :onyx/n-peers) (s/enum 1)
-              UserTaskMapKey s/Any}]))
+  {:datomic/uri s/Str
+   (s/optional-key :datomic/partition) (s/either s/Int s/Keyword)
+   (s/optional-key :onyx/max-peers) (s/enum 1)
+   (s/optional-key :onyx/n-peers) (s/enum 1)
+   (os/restricted-ns :datomic) s/Any})
 
 (s/defn ^:always-validate write-bulk-tx-datoms
   ([task-name :- s/Keyword opts]
@@ -130,8 +119,7 @@
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-calls}]}
-    :schema {:task-map DatomicWriteDatomsTaskMap
-             :lifecycles [os/Lifecycle]}})
+    :schema {:task-map DatomicWriteDatomsTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
     task-opts :- {s/Any s/Any}]
@@ -147,8 +135,7 @@
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/write-tx-calls}]}
-    :schema {:task-map DatomicWriteDatomsTaskMap
-             :lifecycles [os/Lifecycle]}})
+    :schema {:task-map DatomicWriteDatomsTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
     task-opts :- {s/Any s/Any}]
@@ -165,8 +152,7 @@
                             opts)
            :lifecycles [{:lifecycle/task task-name
                          :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-async-calls}]}
-    :schema {:task-map DatomicWriteDatomsTaskMap
-             :lifecycles [os/Lifecycle]}})
+    :schema {:task-map DatomicWriteDatomsTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
     task-opts :- {s/Any s/Any}]
