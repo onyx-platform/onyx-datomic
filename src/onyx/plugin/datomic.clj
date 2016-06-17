@@ -268,9 +268,13 @@
 
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
+  (when (re-matches #"datomic:mem://.*" (:datomic/uri task-map))
+    (throw (ex-info "Read datoms cannot support in mem datomic instances, as these do not have a transaction log." task-map)))
+
   (when-not (or (= 1 (:onyx/max-peers task-map))
                 (= 1 (:onyx/n-peers task-map)))
-    (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
+    (throw (ex-info "Read log tasks must set :onyx/max-peers 1, or :onyx/n-peers 1" task-map)))
+
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         {:keys [read-ch shutdown-ch commit-ch]} pipeline
