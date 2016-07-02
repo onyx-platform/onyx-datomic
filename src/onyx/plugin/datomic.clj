@@ -69,13 +69,14 @@
   {})
 
 (defn inject-read-datoms-resources
-  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
+  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/job-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (or (= 1 (:onyx/max-peers task-map))
                 (= 1 (:onyx/n-peers task-map)))
     (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
 
-  (let [_ (extensions/write-chunk log :chunk {:chunk-index -1 :status :incomplete} task-id)
-        content (extensions/read-chunk log :chunk task-id)]
+  (let [job-task-id (str job-id "#" task-id)
+        _ (extensions/write-chunk log :chunk {:chunk-index -1 :status :incomplete} job-task-id)
+        content (extensions/read-chunk log :chunk job-task-id)]
     (if (= :complete (:status content))
       (throw (Exception. "Restarted task and it was already complete. This is currently unhandled."))
       (let [ch (:read-ch pipeline)
@@ -86,7 +87,7 @@
             datoms-per-segment (safe-datoms-per-segment task-map)
             unroll (partial unroll-datom db)
             num-ignored (* start-index datoms-per-segment)
-            commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log task-id)
+            commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log job-task-id)
             producer-ch (thread
                           (try
                             (loop [chunk-index (inc start-index)
@@ -143,7 +144,7 @@
     (swap! top-chunk-index max chunk-index)
     (swap! pending-chunk-indices conj chunk-index)))
 
-(defrecord DatomicInput [log task-id max-pending batch-size batch-timeout
+(defrecord DatomicInput [log max-pending batch-size batch-timeout
                          pending-messages drained?
                          top-chunk-index top-acked-chunk-index pending-chunk-indices
                          read-ch retry-ch commit-ch]
@@ -201,7 +202,6 @@
         retry-ch (chan (* 2 max-pending))
         commit-ch (chan (sliding-buffer 1))]
     (->DatomicInput (:onyx.core/log pipeline-data)
-                    (:onyx.core/task-id pipeline-data)
                     max-pending batch-size batch-timeout
                     (atom {})
                     (atom false)
@@ -276,7 +276,7 @@
           (partial map unroll-log-datom)))
 
 (defn inject-read-log-resources
-  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
+  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/job-id onyx.core/pipeline] :as event} lifecycle]
   (when (re-matches #"datomic:mem://.*" (:datomic/uri task-map))
     (throw (ex-info "Read datoms cannot support in mem datomic instances, as these do not have a transaction log." task-map)))
 
@@ -287,7 +287,8 @@
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
         {:keys [read-ch retry-ch shutdown-ch commit-ch]} pipeline
-        checkpoint-key (or (:checkpoint/key task-map) task-id)
+        job-task-id (str job-id "#" task-id)
+        checkpoint-key (or (:checkpoint/key task-map) job-task-id)
         _ (set-starting-offset! log task-map checkpoint-key start-tx)
         checkpointed (extensions/read-chunk log :chunk checkpoint-key)
         _ (validate-within-supplied-bounds start-tx max-tx (:largest checkpointed))
