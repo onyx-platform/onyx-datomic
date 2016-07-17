@@ -27,7 +27,9 @@
 
              :datomic/read-buffer
              {:type :integer
-              :doc "The number of segments to buffer after partitioning, default is `1000`."}}}
+              :optional? true
+              :default 1000
+              :doc "The number of segments to buffer after partitioning."}}}
 
     :datomic/read-index-range
     {:summary "Reads datoms from an indexed attribute via `datomic.api/index-range`."
@@ -57,7 +59,9 @@
 
              :datomic/read-buffer
              {:type :integer
-              :doc "The number of segments to buffer after partitioning, default is `1000`."}}}
+              :optional? true
+              :default 1000
+              :doc "The number of segments to buffer after partitioning."}}}
 
     :datomic/read-log
     {:summary "Reads the transaction log via repeated chunked calls of d/tx-range. Continues to read transactions until `:datomic/log-end-tx` is reached, or forever if `:datomic/log-end-tx` is nil."
@@ -86,7 +90,9 @@
 
              :datomic/read-buffer
              {:type :integer
-              :doc "The number of segments to buffer after partitioning, default is `1000`."}}}
+              :optional? true
+              :default 1000
+              :doc "The number of segments to buffer after partitioning."}}}
 
     :datomic/commit-tx
     {:summary "Writes new entity maps to datomic. Will automatically assign tempid's for the partition if a value for `:datomic/partition` is supplied and datomic transaction data is in map form. tx-data returned by `datomic.api/transact` is injected into the pipeline event map under `:datomic/written`."
