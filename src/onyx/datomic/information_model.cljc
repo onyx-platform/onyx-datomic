@@ -2,7 +2,7 @@
 
 (def model
   {:catalog-entry
-   {:datomic/read-datoms
+   {:onyx.plugin.datomic/read-datoms
     {:summary "Reads datoms out of a Datomic database via `datomic.api/datoms`."
      :model {:datomic/uri
              {:type :string
@@ -31,7 +31,7 @@
               :default 1000
               :doc "The number of segments to buffer after partitioning."}}}
 
-    :datomic/read-index-range
+    :onyx.plugin.datomic/read-index-range
     {:summary "Reads datoms from an indexed attribute via `datomic.api/index-range`."
      :model {:datomic/uri
              {:type :string
@@ -63,7 +63,7 @@
               :default 1000
               :doc "The number of segments to buffer after partitioning."}}}
 
-    :datomic/read-log
+    :onyx.plugin.datomic/read-log
     {:summary "Reads the transaction log via repeated chunked calls of d/tx-range. Continues to read transactions until `:datomic/log-end-tx` is reached, or forever if `:datomic/log-end-tx` is nil."
      :model {:datomic/uri
              {:type :string
@@ -94,7 +94,7 @@
               :default 1000
               :doc "The number of segments to buffer after partitioning."}}}
 
-    :datomic/commit-tx
+    :onyx.plugin.datomic/commit-tx
     {:summary "Writes new entity maps to datomic. Will automatically assign tempid's for the partition if a value for `:datomic/partition` is supplied and datomic transaction data is in map form. tx-data returned by `datomic.api/transact` is injected into the pipeline event map under `:datomic/written`."
      :model {:datomic/uri
              {:type :string
@@ -105,7 +105,7 @@
               :optional? true
               :doc "When supplied, :db/id tempids are added using this partition."}}}
 
-    :datomic/commit-bulk-tx
+    :onyx.plugin.datomic/commit-bulk-tx
     {:summary "Exactly the same as commit-bulk-tx (asynchronous), but transacts each tx completely (blocking on the returned future) before proceeding to the next. You should generally prefer the async version."
      :model {:datomic/uri
              {:type :string
@@ -116,7 +116,7 @@
               :optional? true
               :doc "When supplied, :db/id tempids are added using this partition."}}}
 
-    :datomic/commit-bulk-tx-async
+    :onyx.plugin.datomic/commit-bulk-tx-async
     {:summary "Writes transactions via the `:tx` segment key to a Datomic database. The value of `:tx` should be as if it were ready for `(d/transact uri tx)`. This lets you perform retractions and arbitrary db functions. tx-data returned by datomic.api/transact is injected into the pipeline event map under `:datomic/written`. Takes advantage of the Datomic transactor's ability to pipeline transactions by asynchronously transacting `:onyx/batch-size`transactions at once. Transaction futures are then derefed one by one after. Parallelism can thus be controlled by modifying the batch size appropriately. This is the recommended way to transact in bulk."
      :model {:datomic/uri
              {:type :string
@@ -128,7 +128,7 @@
               :doc "When supplied, :db/id tempids are added using this partition."}}}}
 
    :display-order
-   {:datomic/read-datoms
+   {:onyx.plugin.datomic/read-datoms
     [:datomic/uri
      :datomic/t
      :datomic/datoms-index
@@ -136,7 +136,7 @@
      :datomic/datoms-per-segment
      :datomic/read-buffer]
 
-    :datomic/read-index-range
+    :onyx.plugin.datomic/read-index-range
     [:datomic/uri
      :datomic/t
      :datomic/index-attribute
@@ -145,7 +145,7 @@
      :datomic/datoms-per-segment
      :datomic/read-buffer]
 
-    :datomic/read-log
+    :onyx.plugin.datomic/read-log
     [:datomic/uri
      :datomic/log-start-tx
      :datomic/log-end-tx
@@ -153,14 +153,14 @@
      :checkpoint/key
      :datomic/read-buffer]
 
-    :datomic/commit-tx
+    :onyx.plugin.datomic/commit-tx
     [:datomic/uri
      :datomic/partition]
 
-    :datomic/commit-bulk-tx
+    :onyx.plugin.datomic/commit-bulk-tx
     [:datomic/uri
      :datomic/partition]
 
-    :datomic/commit-bulk-tx-async
+    :onyx.plugin.datomic/commit-bulk-tx-async
     [:datomic/uri
      :datomic/partition]}})
