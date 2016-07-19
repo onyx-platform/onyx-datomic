@@ -20,7 +20,7 @@ In your peer boot-up namespace:
 
 ##### read-datoms
 
-Reads datoms out a Datomic database via `datomic.api/datoms`.
+Reads datoms out of a Datomic database via `datomic.api/datoms`.
 
 Catalog entry:
 
