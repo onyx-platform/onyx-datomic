@@ -59,31 +59,35 @@
       (d/index-range db attribute range-start range-end))))
 
 (defn close-read-datoms-resources
-  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch] :as event} lifecycle]
+  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch datomic/retry-ch] :as event} lifecycle]
   (close! read-ch)
+  (close! retry-ch)
   (while (poll! read-ch))
+  (while (poll! retry-ch))
   (close! commit-ch)
   (close! producer-ch)
   {})
 
 (defn inject-read-datoms-resources
-  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
+  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/job-id onyx.core/pipeline] :as event} lifecycle]
   (when-not (or (= 1 (:onyx/max-peers task-map))
                 (= 1 (:onyx/n-peers task-map)))
     (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
 
-  (let [_ (extensions/write-chunk log :chunk {:chunk-index -1 :status :incomplete} task-id)
-        content (extensions/read-chunk log :chunk task-id)]
+  (let [job-task-id (str job-id "#" task-id)
+        _ (extensions/write-chunk log :chunk {:chunk-index -1 :status :incomplete} job-task-id)
+        content (extensions/read-chunk log :chunk job-task-id)]
     (if (= :complete (:status content))
       (throw (Exception. "Restarted task and it was already complete. This is currently unhandled."))
       (let [ch (:read-ch pipeline)
+            retry-ch (:retry-ch pipeline)
             start-index (:chunk-index content)
             conn (safe-connect task-map)
             db (safe-as-of task-map conn)
             datoms-per-segment (safe-datoms-per-segment task-map)
             unroll (partial unroll-datom db)
             num-ignored (* start-index datoms-per-segment)
-            commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log task-id)
+            commit-loop-ch (start-commit-loop! (:commit-ch pipeline) log job-task-id)
             producer-ch (thread
                           (try
                             (loop [chunk-index (inc start-index)
@@ -103,6 +107,7 @@
                               (>!! ch e))))]
 
         {:datomic/read-ch ch
+         :datomic/retry-ch retry-ch
          :datomic/commit-ch (:commit-ch pipeline)
          :datomic/producer-ch producer-ch
          :datomic/drained? (:drained pipeline)
@@ -122,10 +127,11 @@
   (empty? (remove #(= :done (:message %))
                   messages)))
 
-(defn completed? [batch pending-messages read-ch]
+(defn completed? [batch pending-messages read-ch retry-ch]
   (and (all-done? (vals @pending-messages))
        (all-done? batch)
        (zero? (count (.buf read-ch)))
+       (zero? (count (.buf retry-ch)))
        (or (not (empty? @pending-messages))
            (not (empty? batch)))))
 
@@ -138,10 +144,10 @@
     (swap! top-chunk-index max chunk-index)
     (swap! pending-chunk-indices conj chunk-index)))
 
-(defrecord DatomicInput [log task-id max-pending batch-size batch-timeout
+(defrecord DatomicInput [log max-pending batch-size batch-timeout
                          pending-messages drained?
                          top-chunk-index top-acked-chunk-index pending-chunk-indices
-                         read-ch commit-ch]
+                         read-ch retry-ch commit-ch]
   p-ext/Pipeline
   (write-batch
       [this event]
@@ -153,12 +159,12 @@
           max-segments (min (- max-pending pending) batch-size)
           timeout-ch (timeout batch-timeout)
           batch (->> (range max-segments)
-                     (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true)))))]
+                     (keep (fn [_] (first (alts!! [retry-ch read-ch timeout-ch] :priority true)))))]
       (doseq [m batch]
         (feedback-producer-exception! m)
         (update-chunk-indices! m top-chunk-index pending-chunk-indices)
         (swap! pending-messages assoc (:id m) m))
-      (when (completed? batch pending-messages read-ch)
+      (when (completed? batch pending-messages read-ch retry-ch)
         (>!! commit-ch {:status :complete})
         (reset! drained? true))
       {:onyx.core/batch batch}))
@@ -176,7 +182,7 @@
   (retry-segment
       [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
-      (>!! read-ch (assoc msg :id (random-uuid))))
+      (>!! retry-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
@@ -193,9 +199,9 @@
         batch-size (:onyx/batch-size catalog-entry)
         batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
         read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
+        retry-ch (chan (* 2 max-pending))
         commit-ch (chan (sliding-buffer 1))]
     (->DatomicInput (:onyx.core/log pipeline-data)
-                    (:onyx.core/task-id pipeline-data)
                     max-pending batch-size batch-timeout
                     (atom {})
                     (atom false)
@@ -203,6 +209,7 @@
                     (atom -1)
                     (atom #{})
                     read-ch
+                    retry-ch
                     commit-ch)))
 
 (defn read-datoms [pipeline-data]
@@ -225,9 +232,11 @@
    (:added datom)])
 
 (defn close-read-log-resources
-  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch datomic/shutdown-ch] :as event} lifecycle]
+  [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch datomic/retry-ch datomic/shutdown-ch] :as event} lifecycle]
   (close! read-ch)
+  (close! retry-ch)
   (while (poll! read-ch))
+  (while (poll! retry-ch))
   (close! commit-ch)
   (close! shutdown-ch)
   (<!! producer-ch)
@@ -267,14 +276,19 @@
           (partial map unroll-log-datom)))
 
 (defn inject-read-log-resources
-  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/pipeline] :as event} lifecycle]
+  [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/job-id onyx.core/pipeline] :as event} lifecycle]
+  (when (re-matches #"datomic:mem://.*" (:datomic/uri task-map))
+    (throw (ex-info "Read datoms cannot support in mem datomic instances, as these do not have a transaction log." task-map)))
+
   (when-not (or (= 1 (:onyx/max-peers task-map))
                 (= 1 (:onyx/n-peers task-map)))
-    (throw (ex-info "Read log tasks must set :onyx/max-peers 1" task-map)))
+    (throw (ex-info "Read log tasks must set :onyx/max-peers 1, or :onyx/n-peers 1" task-map)))
+
   (let [start-tx (:datomic/log-start-tx task-map)
         max-tx (:datomic/log-end-tx task-map)
-        {:keys [read-ch shutdown-ch commit-ch]} pipeline
-        checkpoint-key (or (:checkpoint/key task-map) task-id)
+        {:keys [read-ch retry-ch shutdown-ch commit-ch]} pipeline
+        job-task-id (str job-id "#" task-id)
+        checkpoint-key (or (:checkpoint/key task-map) job-task-id)
         _ (set-starting-offset! log task-map checkpoint-key start-tx)
         checkpointed (extensions/read-chunk log :chunk checkpoint-key)
         _ (validate-within-supplied-bounds start-tx max-tx (:largest checkpointed))
@@ -316,6 +330,7 @@
                           (>!! read-ch e))))]
 
     {:datomic/read-ch read-ch
+     :datomic/retry-ch retry-ch
      :datomic/shutdown-ch shutdown-ch
      :datomic/commit-ch commit-ch
      :datomic/producer-ch producer-ch
@@ -339,7 +354,7 @@
 (defrecord DatomicLogInput
     [log task-id max-pending batch-size batch-timeout pending-messages drained?
      top-tx top-acked-tx pending-txes
-     read-ch commit-ch shutdown-ch]
+     read-ch retry-ch commit-ch shutdown-ch]
   p-ext/Pipeline
   (write-batch
       [this event]
@@ -353,12 +368,12 @@
           batch (if (zero? max-segments)
                   (<!! timeout-ch)
                   (->> (range max-segments)
-                       (keep (fn [_] (first (alts!! [read-ch timeout-ch] :priority true))))))]
+                       (keep (fn [_] (first (alts!! [retry-ch read-ch timeout-ch] :priority true))))))]
       (doseq [m batch]
         (feedback-producer-exception! m)
         (update-top-txes! m top-tx pending-txes)
         (swap! pending-messages assoc (:id m) m))
-      (when (completed? batch pending-messages read-ch)
+      (when (completed? batch pending-messages read-ch retry-ch)
         (when-not (:checkpoint/key (:onyx.core/task-map event))
           (>!! commit-ch {:status :complete}))
         (reset! drained? true))
@@ -378,7 +393,7 @@
   (retry-segment
       [_ event segment-id]
     (when-let [msg (get @pending-messages segment-id)]
-      (>!! read-ch (assoc msg :id (random-uuid))))
+      (>!! retry-ch (assoc msg :id (random-uuid))))
     (swap! pending-messages dissoc segment-id))
 
   (pending?
@@ -395,6 +410,7 @@
         batch-size (:onyx/batch-size catalog-entry)
         batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
         read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
+        retry-ch (chan (* 2 max-pending))
         commit-ch (chan (sliding-buffer 1))
         shutdown-ch (chan 1)
         top-tx (atom -1)
@@ -409,6 +425,7 @@
                        top-acked-tx
                        pending-txes
                        read-ch
+                       retry-ch
                        commit-ch
                        shutdown-ch)))
 

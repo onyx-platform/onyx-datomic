@@ -7,7 +7,7 @@ Onyx plugin providing read and write facilities for batch processing a Datomic d
 In your project file:
 
 ```clojure
-[org.onyxplatform/onyx-datomic "0.9.4.1-SNAPSHOT"]
+[org.onyxplatform/onyx-datomic "0.9.9.1-SNAPSHOT"]
 ```
 
 In your peer boot-up namespace:
@@ -20,7 +20,7 @@ In your peer boot-up namespace:
 
 ##### read-datoms
 
-Reads datoms out a Datomic database via `datomic.api/datoms`.
+Reads datoms out of a Datomic database via `datomic.api/datoms`.
 
 Catalog entry:
 
