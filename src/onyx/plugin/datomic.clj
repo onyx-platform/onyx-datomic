@@ -4,7 +4,7 @@
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.peer.function :as function]
             [onyx.types :as t]
-            [onyx.static.default-vals :refer [defaults]]
+            [onyx.static.default-vals :refer [default-vals]]
             [clojure.core.async.impl.protocols :refer [closed?]]
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
@@ -195,9 +195,9 @@
 
 (defn shared-input-builder [pipeline-data]
   (let [catalog-entry (:onyx.core/task-map pipeline-data)
-        max-pending (or (:onyx/max-pending catalog-entry) (:onyx/max-pending defaults))
+        max-pending (or (:onyx/max-pending catalog-entry) (:onyx/max-pending default-vals))
         batch-size (:onyx/batch-size catalog-entry)
-        batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
+        batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout default-vals))
         read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
         retry-ch (chan (* 2 max-pending))
         commit-ch (chan (sliding-buffer 1))]
@@ -294,7 +294,7 @@
         _ (validate-within-supplied-bounds start-tx max-tx (:largest checkpointed))
         _ (check-completed task-map checkpointed)
         read-size (or (:datomic/read-max-chunk-size task-map) 1000)
-        batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout defaults))
+        batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout default-vals))
         initial-backoff 1
         conn (safe-connect task-map)
         commit-loop-ch (start-commit-loop! commit-ch log checkpoint-key)
@@ -406,9 +406,9 @@
 
 (defn read-log [pipeline-data]
   (let [catalog-entry (:onyx.core/task-map pipeline-data)
-        max-pending (or (:onyx/max-pending catalog-entry) (:onyx/max-pending defaults))
+        max-pending (or (:onyx/max-pending catalog-entry) (:onyx/max-pending default-vals))
         batch-size (:onyx/batch-size catalog-entry)
-        batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout defaults))
+        batch-timeout (or (:onyx/batch-timeout catalog-entry) (:onyx/batch-timeout default-vals))
         read-ch (chan (or (:datomic/read-buffer catalog-entry) 1000))
         retry-ch (chan (* 2 max-pending))
         commit-ch (chan (sliding-buffer 1))
