@@ -163,4 +163,35 @@
 
     :onyx.plugin.datomic/commit-bulk-tx-async
     [:datomic/uri
-     :datomic/partition]}})
+     :datomic/partition]}
+
+   :lifecycle-entry
+   {:onyx.plugin.datomic/read-datoms
+    {:model
+     [{:task.lifecycle/name :read-datoms
+       :lifecycle/calls :onyx.plugin.datoms/read-datoms-calls}]}
+
+    :onyx.plugin.datomic/read-index-range
+    {:model
+     [{:task.lifecycle/name :read-index-datoms
+       :lifecycle/calls :onyx.plugin.datoms/read-index-range-calls}]}
+
+    :onyx.plugin.datomic/read-log
+    {:model
+     [{:task.lifecycle/name :read-log
+       :lifecycle/calls :onyx.plugin.datoms/read-log-calls}]}
+
+    :onyx.plugin.datomic/commit-tx
+    {:model
+     [{:task.lifecycle/name :write-datoms
+       :lifecycle/calls :onyx.plugin.datoms/write-tx-calls}]}
+
+    :onyx.plugin.datomic/commit-bulk-tx
+    {:model
+     [{:task.lifecycle/name :write-bulk-datoms
+       :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-calls}]}
+
+    :onyx.plugin.datomic/commit-bulk-tx-async
+    {:model
+     [{:task.lifecycle/name :write-bulk-datoms-async
+       :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-async-calls}]}}})
