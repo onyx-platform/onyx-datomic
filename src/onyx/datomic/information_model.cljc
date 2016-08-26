@@ -131,22 +131,22 @@
    {:onyx.plugin.datomic/read-datoms
     {:model
      [{:task.lifecycle/name :read-datoms
-       :lifecycle/calls :onyx.plugin.datoms/read-datoms-calls}]}
+       :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}]}
 
     :onyx.plugin.datomic/read-index-range
     {:model
      [{:task.lifecycle/name :read-index-datoms
-       :lifecycle/calls :onyx.plugin.datoms/read-index-range-calls}]}
+       :lifecycle/calls :onyx.plugin.datomic/read-index-range-calls}]}
 
     :onyx.plugin.datomic/read-log
     {:model
      [{:task.lifecycle/name :read-log
-       :lifecycle/calls :onyx.plugin.datoms/read-log-calls}]}
+       :lifecycle/calls :onyx.plugin.datomic/read-log-calls}]}
 
     :onyx.plugin.datomic/commit-tx
     {:model
      [{:task.lifecycle/name :write-datoms
-       :lifecycle/calls :onyx.plugin.datoms/write-tx-calls}]}
+       :lifecycle/calls :onyx.plugin.datomic/write-tx-calls}]}
 
     :onyx.plugin.datomic/commit-bulk-tx
     {:model
