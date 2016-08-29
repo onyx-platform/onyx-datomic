@@ -127,6 +127,37 @@
               :optional? true
               :doc "When supplied, :db/id tempids are added using this partition."}}}}
 
+   :lifecycle-entry
+   {:onyx.plugin.datomic/read-datoms
+    {:model
+     [{:task.lifecycle/name :read-datoms
+       :lifecycle/calls :onyx.plugin.datomic/read-datoms-calls}]}
+
+    :onyx.plugin.datomic/read-index-range
+    {:model
+     [{:task.lifecycle/name :read-index-datoms
+       :lifecycle/calls :onyx.plugin.datomic/read-index-range-calls}]}
+
+    :onyx.plugin.datomic/read-log
+    {:model
+     [{:task.lifecycle/name :read-log
+       :lifecycle/calls :onyx.plugin.datomic/read-log-calls}]}
+
+    :onyx.plugin.datomic/commit-tx
+    {:model
+     [{:task.lifecycle/name :write-datoms
+       :lifecycle/calls :onyx.plugin.datomic/write-tx-calls}]}
+
+    :onyx.plugin.datomic/commit-bulk-tx
+    {:model
+     [{:task.lifecycle/name :write-bulk-datoms
+       :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-calls}]}
+
+    :onyx.plugin.datomic/commit-bulk-tx-async
+    {:model
+     [{:task.lifecycle/name :write-bulk-datoms-async
+       :lifecycle/calls :onyx.plugin.datomic/write-bulk-tx-async-calls}]}}
+
    :display-order
    {:onyx.plugin.datomic/read-datoms
     [:datomic/uri
