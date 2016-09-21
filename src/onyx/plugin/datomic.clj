@@ -501,21 +501,35 @@
 (defrecord DatomicWriteBulkDatomsAsync [conn]
   p-ext/Pipeline
   (read-batch
-      [_ event]
+    [_ event]
     (function/read-batch event))
 
   (write-batch
       [_ event]
-    {;; Transact each tx individually to avoid tempid conflicts.
-     :datomic/written (->> (mapv (fn [tx]
-                                   (d/transact-async conn (:tx (:message tx))))
-                                 (mapcat :leaves (:tree (:onyx.core/results event))))
-                           (into [] (comp (map deref))))
-     :datomic/written? true})
+      (let [timeout-ms 10
+            written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+                         (map (fn [tx]
+                                (d/transact-async conn (:tx (:message tx)))))
+                         (doall)
+                         (map #(deref % timeout-ms ::timed-out))
+                         (doall))]
+        (when (some #(= ::timed-out written) written)
+          (throw (ex-info "Timed out, writing async message. Rebooting task" {:restartable? true
+                                                                              :datomic-plugin? true
+                                                                              :timeout timeout-ms})))
+        {;; Transact each tx individually to avoid tempid conflicts.
+         :datomic/written written
+         :datomic/written? true}))
 
   (seal-resource
       [_ _]
     {}))
+
+(defn handle-timed-out-exception [event lifecycle lf-kw exception]
+  (if (and (:datomic-plugin? (ex-data exception))
+           (:restartable? (ex-data exception)))
+    :restartable
+    :kill))
 
 (defn write-bulk-datoms-async [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
@@ -537,7 +551,8 @@
   {:lifecycle/before-task-start inject-write-bulk-tx-resources})
 
 (def write-bulk-tx-async-calls
-  {:lifecycle/before-task-start inject-write-bulk-tx-async-resources})
+  {:lifecycle/before-task-start inject-write-bulk-tx-async-resources
+   :lifecycle/handle-exception handle-timed-out-exception})
 
 ;;;;;;;;;
 ;;; params lifecycles
