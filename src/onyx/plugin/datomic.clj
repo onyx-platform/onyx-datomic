@@ -483,11 +483,21 @@
 
   (write-batch
       [_ event]
-    {;; Transact each tx individually to avoid tempid conflicts.
-     :datomic/written (mapv (fn [tx]
-                              @(d/transact conn (:tx (:message tx))))
-                            (mapcat :leaves (:tree (:onyx.core/results event))))
-     :datomic/written? true})
+
+      (let [written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+                         (map (fn [tx]
+                                (d/transact conn (:tx (:message tx)))))
+                         (doall)
+                         (map #(deref % timeout-ms ::timed-out))
+                         (doall))]
+        (when (some #(= ::timed-out written) written)
+          (throw (ex-info "Timed out transacting message to datomic. Rebooting task" 
+                          {:restartable? true
+                           :datomic-plugin? true
+                           :timeout timeout-ms})))
+        {;; Transact each tx individually to avoid tempid conflicts.
+         :datomic/written written
+         :datomic/written? true}))
 
   (seal-resource
       [_ _]
@@ -514,9 +524,10 @@
                          (map #(deref % timeout-ms ::timed-out))
                          (doall))]
         (when (some #(= ::timed-out written) written)
-          (throw (ex-info "Timed out, writing async message. Rebooting task" {:restartable? true
-                                                                              :datomic-plugin? true
-                                                                              :timeout timeout-ms})))
+          (throw (ex-info "Timed out writing async message to datomic. Rebooting task" 
+                          {:restartable? true
+                           :datomic-plugin? true
+                           :timeout timeout-ms})))
         {;; Transact each tx individually to avoid tempid conflicts.
          :datomic/written written
          :datomic/written? true}))
@@ -548,7 +559,8 @@
   {:lifecycle/before-task-start inject-write-tx-resources})
 
 (def write-bulk-tx-calls
-  {:lifecycle/before-task-start inject-write-bulk-tx-resources})
+  {:lifecycle/before-task-start inject-write-bulk-tx-resources
+   :lifecycle/handle-exception handle-timed-out-exception})
 
 (def write-bulk-tx-async-calls
   {:lifecycle/before-task-start inject-write-bulk-tx-async-resources
