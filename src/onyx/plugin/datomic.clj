@@ -458,7 +458,7 @@
   (write-batch
       [_ event]
       (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))
-            timeout-ms 10
+            timeout-ms 15000 
             written (-> conn
                         (d/transact (map (fn [msg] (if (and partition (not (sequential? msg)))
                                                      (assoc msg :db/id (d/tempid partition))
@@ -492,7 +492,7 @@
   (write-batch
       [_ event]
 
-      (let [timeout-ms 10
+      (let [timeout-ms 15000
             written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
                          (map (fn [tx]
                                 (d/transact conn (:tx (:message tx)))))
@@ -525,7 +525,7 @@
 
   (write-batch
       [_ event]
-      (let [timeout-ms 10
+      (let [timeout-ms 15000
             written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
                          (map (fn [tx]
                                 (d/transact-async conn (:tx (:message tx)))))
