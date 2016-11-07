@@ -150,7 +150,7 @@
                          read-ch retry-ch commit-ch]
   p-ext/Pipeline
   (write-batch
-      [this event]
+    [this event]
     (function/write-batch event))
 
   (read-batch
@@ -457,12 +457,20 @@
 
   (write-batch
       [_ event]
-    (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
-      {:datomic/written @(d/transact conn
-                                     (map (fn [msg] (if (and partition (not (sequential? msg)))
-                                                      (assoc msg :db/id (d/tempid partition))
-                                                      msg))
-                                          (map :message messages)))
+      (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))
+            timeout-ms 15000 
+            written (-> conn
+                        (d/transact (map (fn [msg] (if (and partition (not (sequential? msg)))
+                                                     (assoc msg :db/id (d/tempid partition))
+                                                     msg))
+                                         (map :message messages)))
+                        (deref timeout-ms ::timed-out))]
+        (when (= ::timed-out written)
+          (throw (ex-info "Timed out transacting message to datomic. Rebooting task" 
+                          {:restartable? true
+                           :datomic-plugin? true
+                           :timeout timeout-ms})))
+      {:datomic/written written
        :datomic/written? true}))
 
   (seal-resource
@@ -484,7 +492,8 @@
   (write-batch
       [_ event]
 
-      (let [written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+      (let [timeout-ms 15000
+            written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
                          (map (fn [tx]
                                 (d/transact conn (:tx (:message tx)))))
                          (doall)
@@ -516,7 +525,7 @@
 
   (write-batch
       [_ event]
-      (let [timeout-ms 10
+      (let [timeout-ms 15000
             written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
                          (map (fn [tx]
                                 (d/transact-async conn (:tx (:message tx)))))
