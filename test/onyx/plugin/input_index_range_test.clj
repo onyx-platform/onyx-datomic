@@ -84,7 +84,10 @@
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (onyx.test-helper/validate-enough-peers! test-env job)
-        (onyx.api/submit-job peer-config job)
-        (is (= (set (map #(nth % 2) (mapcat :datoms (take-segments! persist))))
+        (->> job 
+             (onyx.api/submit-job peer-config)
+             :job-id
+             (onyx.test-helper/feedback-exception! peer-config))
+        (is (= (set (map #(nth % 2) (mapcat :datoms (take-segments! persist 50))))
                #{"Benti" "Derek" "Dorrene"})))
       (finally (d/delete-database db-uri)))))

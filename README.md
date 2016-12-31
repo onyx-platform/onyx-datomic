@@ -16,6 +16,14 @@ In your peer boot-up namespace:
 (:require [onyx.plugin.datomic])
 ```
 
+
+
+#### ABS ISSUES
+* no backoff in log reader
+* Test crashing
+* checkpointing for log reader can't be global / savepoints
+    - once savepoints work, fix onyx.plugin.input-log-test
+
 #### Functions
 
 ##### read-datoms
@@ -118,7 +126,6 @@ Catalog entry:
  :datomic/uri db-uri
  :datomic/log-start-tx <<OPTIONAL_TX_START_INDEX>>
  :datomic/log-end-tx <<OPTIONAL_TX_END_INDEX>>
- :checkpoint/force-reset? true
  :onyx/max-peers 1
  :onyx/batch-size batch-size
  :onyx/doc "Reads a sequence of datoms from the d/log API"}
@@ -136,15 +143,7 @@ Task will emit a sentinel `:done` when it reaches the tx log-end-tx
 
 Segments will be read in the form `{:t tx-id :data [[e a v t added] [e a v t added]]}`.
 
-Log read checkpointing is per job - i.e. if a virtual peer crashes, and a new
-one is allocated to the task, the new virtual peer will restart reading the log
-at the highest acked point. If a new job is started, this checkpoint
-information will not be used. In order to persist checkpoint information
-between jobs, add `:checkpoint/key "somekey"` to the task-map. This will
-persist checkpoint information for cluster (on a given :onyx/tenancy-id) under the key,
-ensuring that any new jobs restart at the checkpoint. This is useful if the
-cluster needs to be restarted, or a job is killed and a new one is created in
-its place.
+FIXME FIXME FIXME ADD DOCUMENTATION.
 
 ###### Attributes
 
@@ -152,9 +151,7 @@ its place.
 |------------------------------|-----------|------------
 |`:datomic/uri`                | `string`  | The URI of the datomic database to connect to
 |`:datomic/log-start-tx`       | `integer` | optional starting tx (inclusive) for log read
-|`:datomic/log-end-tx`         | `integer` | optional ending tx (exclusive) for log read. Sentinel will emitted when this tx is passed.
-|`:checkpoint/force-reset?`    | `boolean` | whether or not checkpointing should be re-initialised from log-start-tx, or 0 in the case of nil
-|`:checkpoint/key`             | `any`     | optional global (for a given onyx/tenancy-id) key under which to store the checkpoint information. By default the task-id for the job will be used, in which case checkpointing will only be resumed when a virtual peer crashes, and not when a new job is started.
+|`:datomic/log-end-tx`         | `integer` | optional ending tx (inclusive) for log read. Sentinel will emitted when this tx is passed.
 |`:datomic/read-buffer`        | `integer` | The number of segments to buffer after partitioning, default is `1000`
 
 ##### commit-tx

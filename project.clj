@@ -17,7 +17,7 @@
   :test-selectors {:default (complement :ci)
                    :ci :ci
                    :all (constantly true)}
-  :profiles {:dev {:dependencies [[com.datomic/datomic-free "0.9.5394"]
+  :profiles {:dev {:dependencies [[com.datomic/datomic-free "0.9.5544"]
                                   [aero "0.2.0"]]
                    :plugins [[lein-set-version "0.4.1"]
                              [lein-update-dependency "0.1.2"]

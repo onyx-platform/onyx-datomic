@@ -1,3 +1,7 @@
+#### 0.10.0.0
+* `:checkpoint/force-reset?` and `:checkpoint/key` are both deprecated in favour of 0.10.0's resume-points feature.
+ -- TODO, Lucas fix the README
+
 #### 0.9.7.0
 * Defensively reduce chances of deadlock.
 

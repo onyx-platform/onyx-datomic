@@ -20,13 +20,12 @@
 (defn my-test-query [{:keys [datoms] :as segment}]
   {:names (d/q query datoms)})
 
-(def batch-num (atom 0))
-
 (def read-datoms-crash
-  {:lifecycle/before-batch (fn [event lifecycle]
-                             (when (zero? (mod (swap! batch-num inc) 5))
-                               (Thread/sleep 3000)
-                               (throw (ex-info "Restartable" {:restartable? true}))))
+  {; :lifecycle/after-batch (fn [event lifecycle]
+  ;                           (when (and (not (empty? (:onyx.core/batch event)))
+  ;                                      (zero? (rand-int 20)))
+  ;                            (throw (ex-info "Restartable" {:restartable? true})))
+  ;                          {})
    :lifecycle/handle-exception (constantly :restart)})
 
 (defn build-job [db-uri t batch-size batch-timeout]
@@ -38,7 +37,8 @@
                                     :onyx/type :function
                                     :onyx/batch-size batch-size
                                     :onyx/doc "Queries for names of 5 characters or fewer"}]
-                         :lifecycles []
+                         :lifecycles [{:lifecycle/task :read-datoms
+                                       :lifecycle/calls ::read-datoms-crash}]
                          :windows []
                          :triggers []
                          :flow-conditions []
@@ -51,7 +51,7 @@
                                         :datomic/datoms-per-segment 1
                                         :onyx/max-peers 1}
                                        batch-settings)))
-        (add-task (core-async/output :persist batch-settings)))))
+        (add-task (core-async/output :persist batch-settings 1000000)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -72,16 +72,10 @@
     :db.install/_attribute :db.part/db}])
 
 (def people
-  [{:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Mike"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Dorrene"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Benti"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Derek"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Kristen"}])
+  (mapv (fn [v]
+          {:db/id (d/tempid :com.mdrogalis/people)
+           :user/name (str v)})
+        (range 10000)))
 
 (deftest datomic-input-fault-tolerance-test
   (let [db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))
@@ -90,12 +84,15 @@
                                           {:profile :test})
         _ (mapv (partial ensure-datomic! db-uri) [[] schema people])
         t (d/next-t (d/db (d/connect db-uri)))
-        job (build-job db-uri t 20 1000)
+        job (build-job db-uri t 1 1000)
         {:keys [persist]} (get-core-async-channels job)]
     (try
-      (with-test-env [test-env [4 env-config peer-config]]
-        (onyx.test-helper/validate-enough-peers! test-env job)
-        (onyx.api/submit-job peer-config job)
-        (is (= (sort (mapcat #(apply concat %) (map :names (take-segments! persist))))
-               (sort ["Mike" "Benti" "Derek"]))))
+      (with-test-env [test-env [5 env-config peer-config]]
+        (->> job 
+             (onyx.api/submit-job peer-config)
+             :job-id
+             (onyx.test-helper/feedback-exception! peer-config))
+
+        (is (= (sort (mapcat #(apply concat %) (map :names (take-segments! persist 50))))
+               (sort (map :user/name people)))))
       (finally (d/delete-database db-uri)))))

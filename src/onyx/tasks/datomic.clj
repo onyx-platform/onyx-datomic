@@ -3,10 +3,7 @@
             [onyx.schema :as os]))
 
 (def DatomicReadLogTaskMap
-  {:datomic/uri (s/pred (fn [s]
-                          (let [[_ type] (clojure.string/split s #":")]
-                            (not= "mem" type)))
-                        "not using in-memory datomic")
+  {:datomic/uri s/Str 
    :checkpoint/force-reset? s/Bool
    (s/optional-key :datomic/log-start-tx) s/Int
    (s/optional-key :datomic/log-end-tx) s/Int
