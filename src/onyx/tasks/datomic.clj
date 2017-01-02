@@ -4,10 +4,8 @@
 
 (def DatomicReadLogTaskMap
   {:datomic/uri s/Str 
-   :checkpoint/force-reset? s/Bool
    (s/optional-key :datomic/log-start-tx) s/Int
    (s/optional-key :datomic/log-end-tx) s/Int
-   (s/optional-key :checkpoint/key) s/Str
    (s/optional-key :onyx/max-peers) (s/enum 1)
    (s/optional-key :onyx/n-peers) (s/enum 1)
    (os/restricted-ns :datomic) s/Any})
@@ -24,10 +22,8 @@
     :schema {:task-map DatomicReadLogTaskMap}})
   ([task-name :- s/Keyword
     uri :- s/Str
-    force-reset? :- s/Bool
     task-opts :- {s/Any s/Any}]
-   (read-log task-name (merge {:datomic/uri uri
-                               :checkpoint/force-reset? force-reset?}
+   (read-log task-name (merge {:datomic/uri uri}
                               task-opts))))
 
 (def DatomicReadDatomsTaskMap

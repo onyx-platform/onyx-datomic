@@ -80,7 +80,6 @@
     @offset)
 
   (recover [this replica-version checkpoint]
-    (println "RECOVERIGN" checkpoint)
     (when checkpoint
       (vswap! datoms #(drop checkpoint %)))
     this)
@@ -91,9 +90,11 @@
   (synced? [this ep]
     [true this])
 
+  (checkpointed! [this ep]
+    [true this])
+
   (next-state [this _]
-    (let [read-datoms (mapv #(unroll-datom db %)
-                            (take datoms-per-segment @datoms))] 
+    (let [read-datoms (mapv #(unroll-datom db %) (take datoms-per-segment @datoms))] 
       (vswap! datoms #(drop datoms-per-segment %))
       (if (empty? read-datoms)
         (do (vreset! drained? true)
@@ -188,6 +189,9 @@
           (let [start-tx (:largest checkpoint)]
             (vreset! txes (tx-range conn start-tx batch-size))))
     this)
+  
+  (checkpointed! [this epoch]
+    [true this])
 
   (segment [this]
     @segment)
@@ -255,18 +259,21 @@
   (synced? [this epoch]
     [true this])
 
+  (checkpointed! [this epoch]
+    [true this])
+
   (prepare-batch
     [this event replica]
     [true this])
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
-    (let [messages (mapcat :leaves (:tree results))]
+    (let [segments (mapcat :leaves (:tree results))]
       @(d/transact conn
-                   (map (fn [{:keys [message] :as leaf}] 
-                          (if (and partition (not (sequential? message)))
-                            (assoc message :db/id (d/tempid partition))
-                            message)) 
-                        messages))
+                   (map (fn [segment] 
+                          (if (and partition (not (sequential? segment)))
+                            (assoc segment :db/id (d/tempid partition))
+                            segment)) 
+                        segments))
       [true this])))
 
 (defn write-datoms [pipeline-data]
@@ -287,13 +294,16 @@
   (synced? [this epoch]
     [true this])
 
+  (checkpointed! [this epoch]
+    [true this])
+
   (prepare-batch
     [this event replica]
     [true this])
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
-    (run! (fn [{:keys [message]}]
-            @(d/transact conn (:tx message)))
+    (run! (fn [segment]
+            @(d/transact conn (:tx segment)))
           (mapcat :leaves (:tree results)))
     [true this]))
 
@@ -314,13 +324,16 @@
   (synced? [this epoch]
     [true this])
 
+  (checkpointed! [this epoch]
+    [true this])
+
   (prepare-batch
     [this event replica]
     [true this])
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
     (let [xf (comp (mapcat :leaves)
-                   (map (fn [tx] (d/transact-async conn (:tx (:message tx))))))] 
+                   (map (fn [tx] (d/transact-async conn (:tx tx)))))] 
       ;; Transact each tx individually to avoid tempid conflicts.
       ;; FIXME FAILED WRITES
       (->> (sequence xf (:tree results))
