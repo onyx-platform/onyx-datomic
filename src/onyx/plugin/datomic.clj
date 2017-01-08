@@ -66,8 +66,7 @@
     (throw (ex-info "Read datoms tasks must set :onyx/max-peers 1" task-map)))
   {})
 
-
-(defrecord DatomicInput [db datoms-per-segment datoms segment offset drained?]
+(defrecord DatomicInput [db task-map datoms-per-segment datoms segment offset drained?]
   p/Plugin
   (start [this event]
     this)
@@ -79,29 +78,26 @@
   (checkpoint [this]
     @offset)
 
-  (recover [this replica-version checkpoint]
-    (when checkpoint
-      (vswap! datoms #(drop checkpoint %)))
+  (recover! [this replica-version checkpoint]
+    (vreset! drained? false)
+    (vreset! offset (or checkpoint 0))
+    (vreset! datoms (drop (or checkpoint 0) (datoms-sequence db task-map)))
     this)
 
-  (segment [this]
-    @segment)
-
   (synced? [this ep]
-    [true this])
+    true)
 
   (checkpointed! [this ep]
-    [true this])
+    true)
 
-  (next-state [this _]
+  (poll! [this _]
     (let [read-datoms (mapv #(unroll-datom db %) (take datoms-per-segment @datoms))] 
       (vswap! datoms #(drop datoms-per-segment %))
       (if (empty? read-datoms)
         (do (vreset! drained? true)
-            (vreset! segment nil))
-        (do (vreset! segment {:datoms read-datoms})
-            (vswap! offset #(+ % (count read-datoms))))))
-    this)
+            nil)
+        (do (vswap! offset #(+ % (count read-datoms)))
+            {:datoms read-datoms}))))
 
   (completed? [this]
     @drained?))
@@ -110,10 +106,10 @@
   (let [batch-size (:onyx/batch-size task-map)
         datoms-per-segment (:datomic/datoms-per-segment task-map)
         conn (safe-connect task-map)
-        db (safe-as-of task-map conn)
-        datoms (datoms-sequence db task-map)]
+        db (safe-as-of task-map conn)]
     (assert datoms-per-segment)
-    (->DatomicInput db datoms-per-segment (volatile! datoms) (volatile! nil) (volatile! 0) (volatile! false))))
+    (->DatomicInput db task-map datoms-per-segment (volatile! nil) (volatile! nil)
+                    (volatile! 0) (volatile! false))))
 
 (defn read-datoms [pipeline-data]
   (shared-input-builder pipeline-data))
@@ -149,7 +145,6 @@
           :data
           (partial map unroll-log-datom)))
 
-
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map] :as event} lifecycle]
   {})
@@ -160,12 +155,11 @@
     {:largest (or start-tx -1) :status :incomplete}))
 
 (defn tx-range [conn start-tx batch-size]
-  (let [log (d/log conn)
-        start-tx (or start-tx (:t (first (d/tx-range log nil nil))))] 
+  (let [log (d/log conn)] 
     (d/tx-range log start-tx (+ start-tx batch-size))))
 
 (defrecord DatomicLogInput
-  [task-map task-id batch-size batch-timeout conn start-tx end-tx txes top-tx segment drained?]
+  [task-map task-id batch-size batch-timeout conn start-tx end-tx txes top-tx completed?]
   p/Plugin
   (start [this event]
     this)
@@ -180,41 +174,42 @@
                 (:datomic/log-start-tx task-map)) 
      :status :incomplete})
 
-  (recover [this replica-version checkpoint]
-    (cond (nil? checkpoint)
-          (vreset! txes (tx-range conn (:datomic/log-start-tx task-map) batch-size))
-          (= :completed (:status checkpoint))
-          (vreset! drained? true)
-          :else
-          (let [start-tx (:largest checkpoint)]
-            (vreset! txes (tx-range conn start-tx batch-size))))
+  (recover! [this replica-version checkpoint]
+    (if (= :completed (:status checkpoint))
+      (vreset! completed? true)
+      (let [start-tx (or (:largest checkpoint)
+                         (:datomic/log-start-tx task-map)
+                         (:t (first (d/tx-range (d/log conn) nil nil))))]
+        (vreset! txes (tx-range conn start-tx batch-size))
+        (vreset! completed? false)
+        (vreset! top-tx start-tx)))
     this)
   
   (checkpointed! [this epoch]
-    [true this])
-
-  (segment [this]
-    @segment)
+    true)
 
   (synced? [this ep]
-    [true this])
+    true)
 
-  (next-state [this _]
-    (when-not @drained?
-      (if-let [tx (first @txes)]
-        (let [t (:t tx)]
-          (if (> t end-tx)
-            (do (vreset! drained? true)
-                (vreset! segment nil))
-            (vreset! segment (log-entry->segment tx)))
-          (vswap! txes rest)
-          (vreset! top-tx t))
-        (do (vreset! txes (tx-range conn (inc @top-tx) batch-size))
-            (vreset! segment nil))))
-    this)
+  (poll! [this _]
+    (if-let [tx (first @txes)]
+      (let [t (:t tx)]
+        (if (> t end-tx)
+          (do (vreset! completed? true)
+              (vreset! txes nil)
+              nil)
+          (do
+           (vreset! top-tx t) 
+           (vswap! txes rest)
+           (log-entry->segment tx))))
+      (do 
+       ;; Poll for more messages
+       (when-not @completed?
+         (vreset! txes (tx-range conn (inc @top-tx) batch-size)))
+       nil)))
 
   (completed? [this]
-    @drained?))
+    @completed?))
 
 (defn read-log [{:keys [onyx.core/task-map onyx.core/task-id] :as event}]
   (let [conn (safe-connect task-map)
@@ -223,7 +218,7 @@
         start-tx (:datomic/log-start-tx task-map)
         end-tx (:datomic/log-end-tx task-map)]
     (->DatomicLogInput task-map task-id batch-size batch-timeout conn start-tx end-tx 
-                       (volatile! nil) (volatile! nil) (volatile! nil) (volatile! false))))
+                       (volatile! nil) (volatile! nil) (volatile! false))))
 
 (def read-log-calls
   {:lifecycle/before-task-start inject-read-log-resources
@@ -257,14 +252,13 @@
 
   o/Output
   (synced? [this epoch]
-    [true this])
+    true)
 
   (checkpointed! [this epoch]
-    [true this])
+    true)
 
-  (prepare-batch
-    [this event replica]
-    [true this])
+  (prepare-batch [this event replica]
+    true)
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
     (let [segments (mapcat :leaves (:tree results))]
@@ -274,7 +268,7 @@
                             (assoc segment :db/id (d/tempid partition))
                             segment)) 
                         segments))
-      [true this])))
+      true)))
 
 (defn write-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
@@ -292,20 +286,20 @@
 
   o/Output
   (synced? [this epoch]
-    [true this])
+    true)
 
   (checkpointed! [this epoch]
-    [true this])
+    true)
 
   (prepare-batch
     [this event replica]
-    [true this])
+    true)
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
     (run! (fn [segment]
             @(d/transact conn (:tx segment)))
           (mapcat :leaves (:tree results)))
-    [true this]))
+    true))
 
 (defn write-bulk-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
@@ -322,14 +316,14 @@
 
   o/Output
   (synced? [this epoch]
-    [true this])
+    true)
 
   (checkpointed! [this epoch]
-    [true this])
+    true)
 
   (prepare-batch
     [this event replica]
-    [true this])
+    true)
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
     (let [xf (comp (mapcat :leaves)
