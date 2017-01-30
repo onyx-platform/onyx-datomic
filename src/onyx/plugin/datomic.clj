@@ -254,6 +254,8 @@
   (synced? [this epoch]
     true)
 
+  (checkpoint [this])
+
   (checkpointed! [this epoch]
     true)
 
@@ -285,6 +287,9 @@
     this)
 
   o/Output
+
+  (checkpoint [this])
+
   (synced? [this epoch]
     true)
 
@@ -317,6 +322,8 @@
   o/Output
   (synced? [this epoch]
     true)
+
+  (checkpoint [this])
 
   (checkpointed! [this epoch]
     true)
