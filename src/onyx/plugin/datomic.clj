@@ -256,6 +256,9 @@
 
   (checkpoint [this])
 
+  (recover! [this replica-version checkpoint]
+    this)
+
   (checkpointed! [this epoch]
     true)
 
@@ -289,6 +292,9 @@
   o/Output
 
   (checkpoint [this])
+
+  (recover! [this replica-version checkpoint]
+    this)
 
   (synced? [this epoch]
     true)
@@ -324,6 +330,9 @@
     true)
 
   (checkpoint [this])
+
+  (recover! [this replica-version checkpoint]
+    this)
 
   (checkpointed! [this epoch]
     true)
