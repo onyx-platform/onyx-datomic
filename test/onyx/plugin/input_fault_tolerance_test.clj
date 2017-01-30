@@ -112,11 +112,6 @@
              (onyx.api/submit-job peer-config)
              :job-id
              (onyx.test-helper/feedback-exception! peer-config))
-        
-        (println "DIFF" (sort (clojure.set/difference 
-                         (set (sort (map :user/name people)))
-                         (set (sort (mapcat #(apply concat %) (map :names @test-state))))
-                         )))
 
         (is (= (sort (mapcat #(apply concat %) (map :names @test-state)))
                (sort (map :user/name people)))))
