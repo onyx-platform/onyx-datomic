@@ -62,8 +62,6 @@
    {:db/id (d/tempid :com.mdrogalis/people)
     :user/name "Kristen"}])
 
-
-
 (deftest datomic-datoms-components-test
   (let [db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))
         {:keys [env-config peer-config]} (read-config
@@ -76,7 +74,10 @@
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (onyx.test-helper/validate-enough-peers! test-env job)
-        (onyx.api/submit-job peer-config job)
-        (is (= (set (map #(nth % 2) (mapcat :datoms (take-segments! persist))))
+        (->> job 
+             (onyx.api/submit-job peer-config)
+             :job-id
+             (onyx.test-helper/feedback-exception! peer-config))
+        (is (= (set (map #(nth % 2) (mapcat :datoms (take-segments! persist 50))))
                #{"Mike"})))
       (finally (d/delete-database db-uri)))))

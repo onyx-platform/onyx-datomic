@@ -20,14 +20,23 @@
 (defn my-test-query [{:keys [datoms] :as segment}]
   {:names (d/q query datoms)})
 
-(def batch-num (atom 0))
+(def restarted? (atom false))
 
 (def read-datoms-crash
-  {:lifecycle/before-batch (fn [event lifecycle]
-                             (when (zero? (mod (swap! batch-num inc) 5))
-                               (Thread/sleep 3000)
-                               (throw (ex-info "Restartable" {:restartable? true}))))
+  {:lifecycle/after-batch (fn [event lifecycle]
+                            ;; TODO, could do this better with a next epoch lifecycle
+                            (when (and (not (empty? (:onyx.core/batch event)))
+                                       (not @restarted?)
+                                       (zero? (rand-int 10)))
+                              (reset! restarted? true)
+                              (throw (ex-info "Restartable" {:restartable? true})))
+                            {})
    :lifecycle/handle-exception (constantly :restart)})
+
+(def test-state (atom []))
+
+(defn update-atom! [event window trigger {:keys [lower-bound upper-bound event-type] :as state-event} extent-state]
+  (reset! test-state extent-state))
 
 (defn build-job [db-uri t batch-size batch-timeout]
   (let [batch-settings {:onyx/batch-size batch-size :onyx/batch-timeout batch-timeout}
@@ -36,11 +45,21 @@
                          :catalog [{:onyx/name :query
                                     :onyx/fn ::my-test-query
                                     :onyx/type :function
+                                    :onyx/n-peers 1
                                     :onyx/batch-size batch-size
                                     :onyx/doc "Queries for names of 5 characters or fewer"}]
-                         :lifecycles []
-                         :windows []
-                         :triggers []
+                         :lifecycles [{:lifecycle/task :read-datoms
+                                       :lifecycle/calls ::read-datoms-crash}]
+                         :windows [{:window/id :collect-segments
+                                    :window/task :persist
+                                    :window/type :global
+                                    :window/aggregation :onyx.windowing.aggregation/conj}]
+                         :triggers [{:trigger/window-id :collect-segments
+                                     :trigger/refinement :onyx.refinements/accumulating
+                                     :trigger/fire-all-extents? true
+                                     :trigger/on :onyx.triggers/segment
+                                     :trigger/threshold [1 :elements]
+                                     :trigger/sync ::update-atom!}]
                          :flow-conditions []
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
@@ -51,7 +70,7 @@
                                         :datomic/datoms-per-segment 1
                                         :onyx/max-peers 1}
                                        batch-settings)))
-        (add-task (core-async/output :persist batch-settings)))))
+        (add-task (core-async/output :persist (assoc batch-settings :onyx/n-peers 1) 1000000)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -72,30 +91,30 @@
     :db.install/_attribute :db.part/db}])
 
 (def people
-  [{:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Mike"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Dorrene"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Benti"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Derek"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Kristen"}])
+  (mapv (fn [v]
+          {:db/id (d/tempid :com.mdrogalis/people)
+           :user/name (str v)})
+        (range 10000)))
 
 (deftest datomic-input-fault-tolerance-test
   (let [db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))
         {:keys [env-config peer-config]} (read-config
                                           (clojure.java.io/resource "config.edn")
                                           {:profile :test})
+        peer-config (assoc peer-config :onyx.peer/coordinator-barrier-period-ms 50)
         _ (mapv (partial ensure-datomic! db-uri) [[] schema people])
         t (d/next-t (d/db (d/connect db-uri)))
-        job (build-job db-uri t 20 1000)
+        job (build-job db-uri t 10 1000)
         {:keys [persist]} (get-core-async-channels job)]
     (try
-      (with-test-env [test-env [4 env-config peer-config]]
-        (onyx.test-helper/validate-enough-peers! test-env job)
-        (onyx.api/submit-job peer-config job)
-        (is (= (sort (mapcat #(apply concat %) (map :names (take-segments! persist))))
-               (sort ["Mike" "Benti" "Derek"]))))
+      (with-test-env [test-env [5 env-config peer-config]]
+        (->> job 
+             (onyx.api/submit-job peer-config)
+             :job-id
+             (onyx.test-helper/feedback-exception! peer-config))
+
+        (is (= (sort (mapcat #(apply concat %) (map :names @test-state)))
+               (sort (map :user/name people)))))
+
+      
       (finally (d/delete-database db-uri)))))

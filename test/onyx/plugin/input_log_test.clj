@@ -28,7 +28,7 @@
                                     :onyx/max-peers 1
                                     :datomic/log-end-tx log-end-tx}
                                    batch-settings)))
-        (add-task (core-async/output :persist batch-settings)))))
+        (add-task (core-async/output :persist batch-settings 100000)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -84,21 +84,27 @@
    {:db/id (d/tempid :com.mdrogalis/people)
     :user/name "Benti4"}])
 
-(deftest ^:ci datomic-input-log-test
+(def people4
+  [{:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Mike4"}
+   {:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Dorrene4"}
+   {:db/id (d/tempid :com.mdrogalis/people)
+    :user/name "Benti4"}])
+
+(deftest datomic-input-log-test
   (let [{:keys [env-config peer-config datomic-config]}
         (read-config (clojure.java.io/resource "config.edn") {:profile :test})
-        db-uri (str (:datomic/uri datomic-config)
-                    (java.util.UUID/randomUUID))]
+        db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))]
     (try
       (with-test-env [test-env [4 env-config peer-config]]
         (testing "That we can read the initial transaction log"
           (let [job (build-job db-uri 1002 10 1000)
                 {:keys [persist]} (get-core-async-channels job)
-                job-id (atom nil)]
-            (mapv (partial ensure-datomic! db-uri) [schema people])
-            (reset! job-id (:job-id (onyx.api/submit-job peer-config job)))
+                _ (mapv (partial ensure-datomic! db-uri) [schema people])
+                job-id (:job-id (onyx.api/submit-job peer-config job))]
             (ensure-datomic! db-uri people2)
-            (onyx.api/await-job-completion peer-config @job-id)
+            (onyx.api/await-job-completion peer-config job-id)
             (is (= [{:data '([63 10 :com.mdrogalis/people 13194139534312 true]
                              [0 11 63 13194139534312 true]
                              [64 10 :user/name 13194139534312 true]
@@ -109,33 +115,31 @@
                              [277076930200555 64 "Dorrene" 13194139534313 true]
                              [277076930200556 64 "Benti" 13194139534313 true]
                              [277076930200557 64 "Derek" 13194139534313 true]
-                             [277076930200558 64 "Kristen" 13194139534313 true]) :t 1001} :done]
+                             [277076930200558 64 "Kristen" 13194139534313 true]) :t 1001}]
                    (map (fn [result]
-                          (if (= result :done)
-                            :done
+                          (-> result
+                              (update :data rest)
+                              (dissoc :id)))
+                        (take-segments! persist 50))))
+            ;; recover from resume point, should only get the latest txes
+            (let [new-job (build-job db-uri 1014 10 1000)
+                  job2 (->> job-id
+                            (onyx.api/job-snapshot-coordinates peer-config (:onyx/tenancy-id peer-config))
+                            (onyx.api/build-resume-point new-job)
+                            (assoc new-job :resume-point))
+                  {:keys [persist]} (get-core-async-channels job2)
+                  _ (mapv (partial ensure-datomic! db-uri) [people3 people4 people4 people4])
+                  job-id-2 (:job-id (onyx.api/submit-job peer-config job2))]
+              (onyx.api/await-job-completion peer-config job-id-2)
+              (is (= [{:data '([277076930200560 64 "Mike2" 13194139534319 true]
+                               [277076930200561 64 "Dorrene2" 13194139534319 true]
+                               [277076930200562 64 "Benti2" 13194139534319 true]), :t 1007}
+                      {:data '([277076930200564 64 "Mike3" 13194139534323 true]
+                               [277076930200565 64 "Dorrene3" 13194139534323 true]
+                               [277076930200566 64 "Benti3" 13194139534323 true]), :t 1011}]
+                     (map (fn [result]
                             (-> result
                                 (update :data rest)
-                                (dissoc :id))))
-                        (take-segments! persist))))))
-        (Thread/sleep 5000)
-        (testing "That checkpointing picks up where we left off"
-          (let [job (build-job db-uri 1014 10 1000)
-                {:keys [persist]} (get-core-async-channels job)
-                job-id (atom nil)]
-            (mapv (partial ensure-datomic! db-uri) [people3 people4 people4 people4])
-            (reset! job-id (:job-id (onyx.api/submit-job peer-config job)))
-            (onyx.api/await-job-completion peer-config @job-id)
-            (is (= [{:data '([277076930200560 64 "Mike2" 13194139534319 true]
-                             [277076930200561 64 "Dorrene2" 13194139534319 true]
-                             [277076930200562 64 "Benti2" 13194139534319 true]), :t 1007}
-                    {:data '([277076930200564 64 "Mike3" 13194139534323 true]
-                             [277076930200565 64 "Dorrene3" 13194139534323 true]
-                             [277076930200566 64 "Benti3" 13194139534323 true]), :t 1011} :done]
-                   (map (fn [result]
-                          (if (= result :done)
-                            :done
-                            (-> result
-                                (update :data rest)
-                                (dissoc :id))))
-                        (take-segments! persist)))))))
+                                (dissoc :id)))
+                          (take-segments! persist 50))))))))
       (finally (d/delete-database db-uri)))))

@@ -1,7 +1,6 @@
 (ns onyx.plugin.output-test
   (:require [aero.core :refer [read-config]]
-            [clojure.core.async :refer [pipe]]
-            [clojure.core.async.lab :refer [spool]]
+            [clojure.core.async :refer [close! >!!]]
             [clojure.test :refer [deftest is]]
             [datomic.api :as d]
             [onyx api
@@ -55,8 +54,7 @@
    {:name "Dorrene"}
    {:name "Benti"}
    {:name "Kristen"}
-   {:name "Derek"}
-   :done])
+   {:name "Derek"}])
 
 (deftest datomic-tx-output-test
   (let [db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))
@@ -68,11 +66,12 @@
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (ensure-datomic! db-uri schema)
-        (pipe (spool people) in false)
+        (run! (partial >!! in) people)
+        (close! in)
         (onyx.test-helper/validate-enough-peers! test-env job)
         (->> (:job-id (onyx.api/submit-job peer-config job))
-             (onyx.api/await-job-completion peer-config))
+             (onyx.test-helper/feedback-exception! peer-config))
         (let [db (d/db (d/connect db-uri))]
-          (is (= (set (apply concat (d/q '[:find ?a :where [_ :name ?a]] db)))
-                 (set (remove nil? (map :name people)))))))
+          (is (= (set (remove nil? (map :name people)))
+                 (set (apply concat (d/q '[:find ?a :where [_ :name ?a]] db)))))))
       (finally (d/delete-database db-uri)))))

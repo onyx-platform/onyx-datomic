@@ -35,13 +35,13 @@
                          :task-scheduler :onyx.task-scheduler/balanced})]
     (-> base-job
         (add-task (read-datoms :read-datoms
-                                       (merge {:datomic/uri db-uri
-                                               :datomic/t t
-                                               :datomic/datoms-index :eavt
-                                               :datomic/datoms-per-segment 20
-                                               :onyx/max-peers 1}
-                                              batch-settings)))
-        (add-task (core-async/output :persist batch-settings)))))
+                               (merge {:datomic/uri db-uri
+                                       :datomic/t t
+                                       :datomic/datoms-index :eavt
+                                       :datomic/datoms-per-segment 20
+                                       :onyx/max-peers 1}
+                                      batch-settings)))
+        (add-task (core-async/output :persist batch-settings 100000)))))
 
 (defn ensure-datomic!
   ([db-uri data]
@@ -85,7 +85,10 @@
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (onyx.test-helper/validate-enough-peers! test-env job)
-        (onyx.api/submit-job peer-config job)
-        (is (= (set (mapcat #(apply concat %) (map :names (take-segments! persist))))
+        (->> job 
+             (onyx.api/submit-job peer-config)
+             :job-id
+             (onyx.test-helper/feedback-exception! peer-config))
+        (is (= (set (mapcat #(apply concat %) (map :names (take-segments! persist 50))))
                #{"Mike" "Benti" "Derek"})))
       (finally (d/delete-database db-uri)))))

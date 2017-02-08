@@ -1,7 +1,6 @@
 (ns onyx.plugin.tx-output-test
   (:require [aero.core :refer [read-config]]
-            [clojure.core.async :refer [pipe]]
-            [clojure.core.async.lab :refer [spool]]
+            [clojure.core.async :refer [>!! close!]]
             [clojure.test :refer [deftest is]]
             [datomic.api :as d]
             [onyx api
@@ -73,8 +72,7 @@
               {:name "Derek"}])}
    {:tx [{:db/id [:name "Mike"] :age 30}]}
    {:tx [[:db/retract [:name "Dorrene"] :age 21]]}
-   {:tx [[:db.fn/cas [:name "Benti"] :age 10 18]]}
-   :done])
+   {:tx [[:db.fn/cas [:name "Benti"] :age 10 18]]}])
 
 (deftest datomic-tx-output-test
   (let [db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))
@@ -86,7 +84,8 @@
     (try
       (with-test-env [test-env [3 env-config peer-config]]
         (ensure-datomic! db-uri [])
-        (pipe (spool txes) in false)
+        (run! (partial >!! in) txes)
+        (close! in)
         (onyx.test-helper/validate-enough-peers! test-env job)
         (->> (:job-id (onyx.api/submit-job peer-config job))
              (onyx.api/await-job-completion peer-config))

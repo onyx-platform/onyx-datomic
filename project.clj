@@ -1,4 +1,4 @@
-(defproject org.onyxplatform/onyx-datomic "0.9.15.1-SNAPSHOT"
+(defproject org.onyxplatform/onyx-datomic "0.10.0.0-alpha1"
   :description "Onyx plugin for Datomic"
   :url "https://github.com/onyx-platform/onyx-datomic"
   :license {:name "Eclipse Public License"
@@ -13,12 +13,12 @@
                              :sign-releases false}}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  ^{:voom {:repo "git@github.com:onyx-platform/onyx.git" :branch "master"}}
-                 [org.onyxplatform/onyx "0.9.16-20170115_050011-g67c4c8f"]
-                 [aero "0.2.0"]]
+                 [org.onyxplatform/onyx "0.10.0-alpha1"]]
   :test-selectors {:default (complement :ci)
                    :ci :ci
                    :all (constantly true)}
-  :profiles {:dev {:dependencies [[com.datomic/datomic-free "0.9.5394"]]
+  :profiles {:dev {:dependencies [[com.datomic/datomic-free "0.9.5544"]
+                                  [aero "0.2.0"]]
                    :plugins [[lein-set-version "0.4.1"]
                              [lein-update-dependency "0.1.2"]
                              [lein-pprint "1.1.1"]]
