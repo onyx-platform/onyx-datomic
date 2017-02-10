@@ -55,6 +55,7 @@
                                     :window/type :global
                                     :window/aggregation :onyx.windowing.aggregation/conj}]
                          :triggers [{:trigger/window-id :collect-segments
+                                     :trigger/id :trigger-sync
                                      :trigger/refinement :onyx.refinements/accumulating
                                      :trigger/fire-all-extents? true
                                      :trigger/on :onyx.triggers/segment
