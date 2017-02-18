@@ -194,7 +194,7 @@
   (poll! [this _]
     (if-let [tx (first @txes)]
       (let [t (:t tx)]
-        (if (> t end-tx)
+        (if (and end-tx (> t end-tx))
           (do (vreset! completed? true)
               (vreset! txes nil)
               nil)
