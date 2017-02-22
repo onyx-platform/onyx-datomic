@@ -4,9 +4,7 @@
                                         sliding-buffer]] 
             [datomic.api :as d]
             [onyx.types :as t]
-            [onyx.plugin.protocols.plugin :as p]
-            [onyx.plugin.protocols.input :as i]
-            [onyx.plugin.protocols.output :as o]
+            [onyx.plugin.protocols :as p]
             [onyx.static.default-vals :refer [default-vals]]
             [clojure.core.async.impl.protocols :refer [closed?]]
             [onyx.static.uuid :refer [random-uuid]]
@@ -74,7 +72,7 @@
   (stop [this event] 
     this)
 
-  i/Input
+  p/Checkpointed
   (checkpoint [this]
     @offset)
 
@@ -84,11 +82,16 @@
     (vreset! datoms (drop (or checkpoint 0) (datoms-sequence db task-map)))
     this)
 
+  (checkpointed! [this ep]
+    true)
+
+  p/BarrierSynchronization
   (synced? [this ep]
     true)
 
-  (checkpointed! [this ep]
-    true)
+  p/Input
+  (completed? [this]
+    @drained?)
 
   (poll! [this _]
     (let [read-datoms (mapv #(unroll-datom db %) (take datoms-per-segment @datoms))] 
@@ -97,10 +100,7 @@
         (do (vreset! drained? true)
             nil)
         (do (vswap! offset #(+ % (count read-datoms)))
-            {:datoms read-datoms}))))
-
-  (completed? [this]
-    @drained?))
+            {:datoms read-datoms})))))
 
 (defn shared-input-builder [{:keys [onyx.core/task-map] :as event}]
   (let [batch-size (:onyx/batch-size task-map)
@@ -167,7 +167,7 @@
   (stop [this event] 
     this)
 
-  i/Input
+  p/Checkpointed
   (checkpoint [this]
     {:largest (if @top-tx
                 (inc @top-tx) 
@@ -188,9 +188,14 @@
   (checkpointed! [this epoch]
     true)
 
+  p/BarrierSynchronization
   (synced? [this ep]
     true)
 
+  (completed? [this]
+    @completed?)
+
+  p/Input
   (poll! [this _]
     (if-let [tx (first @txes)]
       (let [t (:t tx)]
@@ -206,10 +211,7 @@
        ;; Poll for more messages
        (when-not @completed?
          (vreset! txes (tx-range conn (inc @top-tx) batch-size)))
-       nil)))
-
-  (completed? [this]
-    @completed?))
+       nil))))
 
 (defn read-log [{:keys [onyx.core/task-map onyx.core/task-id] :as event}]
   (let [conn (safe-connect task-map)
@@ -250,10 +252,14 @@
   (stop [this event] 
     this)
 
-  o/Output
+  p/BarrierSynchronization
   (synced? [this epoch]
     true)
 
+  (completed? [this]
+    true)
+
+  p/Checkpointed
   (checkpoint [this])
 
   (recover! [this replica-version checkpoint]
@@ -262,6 +268,7 @@
   (checkpointed! [this epoch]
     true)
 
+  p/Output
   (prepare-batch [this event replica _]
     true)
 
@@ -289,19 +296,23 @@
   (stop [this event] 
     this)
 
-  o/Output
-
+  p/Checkpointed
   (checkpoint [this])
 
   (recover! [this replica-version checkpoint]
     this)
 
-  (synced? [this epoch]
-    true)
-
   (checkpointed! [this epoch]
     true)
 
+  p/BarrierSynchronization
+  (synced? [this epoch]
+    true)
+
+  (completed? [this] 
+    true)
+
+  p/Output
   (prepare-batch [this event replica _]
     true)
 
@@ -324,30 +335,31 @@
   (stop [this event] 
     this)
 
-  o/Output
+  p/BarrierSynchronization
   (synced? [this epoch]
     true)
+  (completed? [this] 
+    true)
+
+  p/Checkpointed
 
   (checkpoint [this])
-
   (recover! [this replica-version checkpoint]
     this)
-
   (checkpointed! [this epoch]
     true)
 
+  p/Output
   (prepare-batch [this event replica _]
     true)
 
   (write-batch [this {:keys [onyx.core/results]} replica _]
     (let [xf (comp (mapcat :leaves)
                    (map (fn [tx] (d/transact-async conn (:tx tx)))))] 
-      ;; Transact each tx individually to avoid tempid conflicts.
-      ;; FIXME FAILED WRITES
       (->> (sequence xf (:tree results))
            (doall)
            (run! deref)))
-    [true this]))
+    true))
 
 (defn write-bulk-datoms-async [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
