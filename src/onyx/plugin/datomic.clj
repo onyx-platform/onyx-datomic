@@ -149,11 +149,6 @@
   [{:keys [onyx.core/task-map] :as event} lifecycle]
   {})
 
-(defn get-starting-offset! [task-map start-tx]
-  (if (:checkpoint/force-reset? task-map)
-    {:largest (or start-tx -1) :status :incomplete}
-    {:largest (or start-tx -1) :status :incomplete}))
-
 (defn tx-range [conn start-tx batch-size]
   (let [log (d/log conn)] 
     (d/tx-range log start-tx (+ start-tx batch-size))))
