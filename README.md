@@ -16,14 +16,6 @@ In your peer boot-up namespace:
 (:require [onyx.plugin.datomic])
 ```
 
-
-
-#### ABS ISSUES
-* no backoff in log reader
-* Test crashing
-* checkpointing for log reader can't be global / savepoints
-    - once savepoints work, fix onyx.plugin.input-log-test
-
 #### Functions
 
 ##### read-datoms
