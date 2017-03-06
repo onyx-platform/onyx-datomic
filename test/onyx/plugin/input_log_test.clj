@@ -84,14 +84,6 @@
    {:db/id (d/tempid :com.mdrogalis/people)
     :user/name "Benti4"}])
 
-(def people4
-  [{:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Mike4"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Dorrene4"}
-   {:db/id (d/tempid :com.mdrogalis/people)
-    :user/name "Benti4"}])
-
 (deftest datomic-input-log-test
   (let [{:keys [env-config peer-config datomic-config]}
         (read-config (clojure.java.io/resource "config.edn") {:profile :test})

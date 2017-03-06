@@ -10,7 +10,8 @@
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
             [onyx.schema :as os]
-            [taoensso.timbre :refer [info debug fatal]]))
+            [taoensso.timbre :refer [info debug fatal]])
+  (:import [java.util.concurrent.locks LockSupport]) )
 
 ;;; Helpers
 
@@ -149,9 +150,9 @@
   [{:keys [onyx.core/task-map] :as event} lifecycle]
   {})
 
-(defn tx-range [conn start-tx batch-size]
+(defn tx-range [conn start-tx]
   (let [log (d/log conn)] 
-    (d/tx-range log start-tx (+ start-tx batch-size))))
+    (d/tx-range log start-tx nil)))
 
 (defrecord DatomicLogInput
   [task-map task-id batch-size batch-timeout conn start-tx end-tx txes top-tx completed?]
@@ -174,8 +175,9 @@
       (vreset! completed? true)
       (let [start-tx (or (:largest checkpoint)
                          (:datomic/log-start-tx task-map)
-                         (:t (first (d/tx-range (d/log conn) nil nil))))]
-        (vreset! txes (tx-range conn start-tx batch-size))
+                         ;; datomic databases are initialised with transactions up to 100
+                         1000)]
+        (vreset! txes (tx-range conn start-tx))
         (vreset! completed? false)
         (vreset! top-tx start-tx)))
     this)
@@ -205,7 +207,8 @@
       (do 
        ;; Poll for more messages
        (when-not @completed?
-         (vreset! txes (tx-range conn (inc @top-tx) batch-size)))
+         (when (empty? (vreset! txes (tx-range conn (inc @top-tx))))
+           (LockSupport/parkNanos (* batch-timeout 1000000))))
        nil))))
 
 (defn read-log [{:keys [onyx.core/task-map onyx.core/task-id] :as event}]
