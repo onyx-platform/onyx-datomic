@@ -11,7 +11,8 @@
             [onyx.extensions :as extensions]
             [onyx.schema :as os]
             [taoensso.timbre :refer [info debug fatal]])
-  (:import [java.util.concurrent.locks LockSupport]) )
+  (:import [java.util.concurrent.locks LockSupport]
+           [java.util.concurrent.atomic AtomicLong]))
 
 ;;; Helpers
 
@@ -155,7 +156,7 @@
     (d/tx-range log start-tx nil)))
 
 (defrecord DatomicLogInput
-  [task-map task-id batch-size batch-timeout conn start-tx end-tx txes top-tx completed?]
+  [task-map task-id batch-size batch-timeout conn start-tx end-tx read-offset txes top-tx completed?]
   p/Plugin
   (start [this event]
     this)
@@ -201,6 +202,7 @@
               (vreset! txes nil)
               nil)
           (do
+           (.set ^AtomicLong read-offset t)
            (vreset! top-tx t) 
            (vswap! txes rest)
            (log-entry->segment tx))))
@@ -211,14 +213,15 @@
            (LockSupport/parkNanos (* batch-timeout 1000000))))
        nil))))
 
-(defn read-log [{:keys [onyx.core/task-map onyx.core/task-id] :as event}]
+(defn read-log [{:keys [onyx.core/task-map onyx.core/task-id onyx.core/monitoring] :as event}]
   (let [conn (safe-connect task-map)
         batch-size (:onyx/batch-size task-map)
         batch-timeout (or (:onyx/batch-timeout task-map) (:onyx/batch-timeout default-vals))
         start-tx (:datomic/log-start-tx task-map)
-        end-tx (:datomic/log-end-tx task-map)]
+        end-tx (:datomic/log-end-tx task-map)
+        read-offset (:read-offset monitoring)]
     (->DatomicLogInput task-map task-id batch-size batch-timeout conn start-tx end-tx 
-                       (volatile! nil) (volatile! nil) (volatile! false))))
+                       read-offset (volatile! nil) (volatile! nil) (volatile! false))))
 
 (def read-log-calls
   {:lifecycle/before-task-start inject-read-log-resources
