@@ -97,7 +97,7 @@
            :user/name (str v)})
         (range 10000)))
 
-(deftest datomic-input-fault-tolerance-test
+#_(deftest datomic-input-fault-tolerance-test
   (let [db-uri (str "datomic:mem://" (java.util.UUID/randomUUID))
         {:keys [env-config peer-config]} (read-config
                                           (clojure.java.io/resource "config.edn")
