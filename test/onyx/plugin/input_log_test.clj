@@ -91,7 +91,7 @@
     (try
       (with-test-env [test-env [4 env-config peer-config]]
         (testing "That we can read the initial transaction log"
-          (let [job (build-job db-uri 1002 10 1000)
+          (let [job (build-job db-uri 1001 10 1000)
                 {:keys [persist]} (get-core-async-channels job)
                 _ (mapv (partial ensure-datomic! db-uri) [schema people])
                 job-id (:job-id (onyx.api/submit-job peer-config job))]
