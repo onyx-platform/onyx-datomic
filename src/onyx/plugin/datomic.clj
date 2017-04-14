@@ -206,12 +206,16 @@
            (vreset! top-tx t) 
            (vswap! txes rest)
            (log-entry->segment tx))))
-      (do 
-       ;; Poll for more messages
-       (when-not @completed?
-         (when (empty? (vreset! txes (tx-range conn (inc @top-tx))))
-           (LockSupport/parkNanos (* batch-timeout 1000000))))
-       nil))))
+      (if (and end-tx (>= @top-tx end-tx))
+        (do (vreset! completed? true)
+            (vreset! txes nil)
+            nil)
+        (do
+         ;; Poll for more messages
+         (when-not @completed?
+           (when (empty? (vreset! txes (tx-range conn (inc @top-tx))))
+             (LockSupport/parkNanos (* batch-timeout 1000000))))
+         nil)))))
 
 (defn read-log [{:keys [onyx.core/task-map onyx.core/task-id onyx.core/monitoring] :as event}]
   (let [conn (safe-connect task-map)
