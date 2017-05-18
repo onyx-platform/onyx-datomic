@@ -4,6 +4,7 @@
             [onyx.peer.pipeline-extensions :as p-ext]
             [onyx.peer.function :as function]
             [onyx.types :as t]
+            [onyx.compression.nippy :refer [messaging-compress]]
             [onyx.static.default-vals :refer [default-vals]]
             [clojure.core.async.impl.protocols :refer [closed?]]
             [onyx.static.uuid :refer [random-uuid]]
@@ -307,7 +308,13 @@
                                                          (take read-size
                                                                (seq
                                                                 (d/tx-range (d/log conn) tx-index nil))))]
-                                         (let [last-t (:t (last entries))
+                                         (let [_ (try (messaging-compress entries)
+                                                      (catch Throwable t
+                                                        (println t)
+                                                        (println "ERROR COMPRESSING TXRANGE ENTRIES")
+                                                        (println entries)
+                                                        (throw t)))
+                                               last-t (:t (last entries))
                                                next-t (inc last-t)]
                                            (doseq [entry (if (nil? max-tx)
                                                            entries
