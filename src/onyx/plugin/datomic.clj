@@ -308,11 +308,12 @@
                                                          (take read-size
                                                                (seq
                                                                 (d/tx-range (d/log conn) tx-index nil))))]
-                                         (let [_ (try (messaging-compress entries)
+                                         (let [conv (mapv log-entry->segment entries)
+                                               _ (try (messaging-compress conv)
                                                       (catch Throwable t
                                                         (println t)
                                                         (println "ERROR COMPRESSING TXRANGE ENTRIES")
-                                                        (println entries)
+                                                        (println conv)
                                                         (throw t)))
                                                last-t (:t (last entries))
                                                next-t (inc last-t)]
