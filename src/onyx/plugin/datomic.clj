@@ -225,11 +225,18 @@
 (defn unroll-log-datom
   "Turns a log datom into a vector of :eavt+op."
   [datom]
-  [(:e datom)
-   (:a datom)
-   (:v datom)
-   (:tx datom)
-   (:added datom)])
+  ;; strip out transaction functions as they are not serializable in onyx
+  (if-not (instance? datomic.function.Function (:v datom))
+    [(:e datom)
+     (:a datom)
+     (:v datom)
+     (:tx datom)
+     (:added datom)]))
+
+(defn log-entry->segment [entry]
+  (update (into {} entry)
+          :data
+          (fn [vs] (keep unroll-log-datom vs))))
 
 (defn close-read-log-resources
   [{:keys [datomic/producer-ch datomic/commit-ch datomic/read-ch datomic/retry-ch datomic/shutdown-ch] :as event} lifecycle]
@@ -269,11 +276,6 @@
              (= :complete (:status checkpointed)))
     (throw (Exception. "Restarted task, however it was already completed for this job.
                        This is currently unhandled."))))
-
-(defn log-entry->segment [entry]
-  (update (into {} entry)
-          :data
-          (partial map unroll-log-datom)))
 
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map onyx.core/log onyx.core/task-id onyx.core/job-id onyx.core/pipeline] :as event} lifecycle]
