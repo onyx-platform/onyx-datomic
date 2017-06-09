@@ -126,11 +126,13 @@
 (defn unroll-log-datom
   "Turns a log datom into a vector of :eavt+op."
   [datom]
-  [(:e datom)
-   (:a datom)
-   (:v datom)
-   (:tx datom)
-   (:added datom)])
+  ;; strip out transaction functions as they are not serializable in onyx
+  (if-not (instance? datomic.function.Function (:v datom))
+    [(:e datom)
+     (:a datom)
+     (:v datom)
+     (:tx datom)
+     (:added datom)]))
 
  (defn close-read-log-resources
   [{:keys [] :as event} lifecycle]
@@ -145,7 +147,7 @@
 (defn log-entry->segment [entry]
   (update (into {} entry)
           :data
-          (partial map unroll-log-datom)))
+          (fn [vs] (keep unroll-log-datom vs))))
 
 (defn inject-read-log-resources
   [{:keys [onyx.core/task-map] :as event} lifecycle]
