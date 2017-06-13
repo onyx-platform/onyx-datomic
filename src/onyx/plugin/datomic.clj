@@ -95,7 +95,7 @@
   (completed? [this]
     @drained?)
 
-  (poll! [this _]
+  (poll! [this _ _]
     (let [read-datoms (mapv #(unroll-datom db %) (take datoms-per-segment @datoms))] 
       (vswap! datoms #(drop datoms-per-segment %))
       (if (empty? read-datoms)
@@ -196,7 +196,7 @@
     @completed?)
 
   p/Input
-  (poll! [this _]
+  (poll! [this _ _]
     (if-let [tx (first @txes)]
       (let [t (:t tx)]
         (if (and end-tx (> t end-tx))
