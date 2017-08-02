@@ -1,6 +1,6 @@
 ## onyx-datomic
 
-Onyx plugin providing read and write facilities for batch processing a Datomic database.
+Onyx plugin providing read and write facilities for batch and stream processing on a Datomic database.
 
 #### Installation
 
