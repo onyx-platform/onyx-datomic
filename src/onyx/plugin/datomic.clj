@@ -158,7 +158,7 @@
     (d/tx-range log start-tx nil)))
 
 (defrecord DatomicLogInput
-  [task-map task-id batch-size batch-timeout conn start-tx end-tx read-offset txes top-tx completed?]
+  [task-map task-id batch-size batch-timeout conn start-tx end-tx read-offset txes top-read-tx completed?]
   p/Plugin
   (start [this event]
     this)
@@ -168,21 +168,19 @@
 
   p/Checkpointed
   (checkpoint [this]
-    {:largest (if @top-tx
-                (inc @top-tx) 
-                (:datomic/log-start-tx task-map)) 
+    {:largest @top-read-tx 
      :status :incomplete})
 
   (recover! [this replica-version checkpoint]
     (if (= :completed (:status checkpoint))
       (vreset! completed? true)
       (let [start-tx (or (:largest checkpoint)
-                         (:datomic/log-start-tx task-map)
+                         (some-> task-map :datomic/log-start-tx dec)
                          ;; datomic databases are initialised with transactions up to 100
-                         1000)]
-        (vreset! txes (tx-range conn start-tx))
+                         (dec 1000))]
+        (vreset! txes (tx-range conn (inc start-tx)))
         (vreset! completed? false)
-        (vreset! top-tx start-tx)))
+        (vreset! top-read-tx start-tx)))
     this)
   
   (checkpointed! [this epoch]
@@ -200,22 +198,24 @@
     (if-let [tx (first @txes)]
       (let [t (:t tx)]
         (if (and end-tx (> t end-tx))
-          (do (vreset! completed? true)
-              (vreset! txes nil)
-              nil)
+          (do 
+           (vreset! completed? true)
+           (vreset! txes nil)
+           nil)
           (do
            (.set ^AtomicLong read-offset t)
-           (vreset! top-tx t) 
+           (vreset! top-read-tx t) 
            (vswap! txes rest)
            (log-entry->segment tx))))
-      (if (and end-tx (>= @top-tx end-tx))
-        (do (vreset! completed? true)
-            (vreset! txes nil)
-            nil)
+      (if (and end-tx (>= @top-read-tx end-tx))
+        (do 
+         (vreset! completed? true)
+         (vreset! txes nil)
+         nil)
         (do
          ;; Poll for more messages
          (when-not @completed?
-           (when (empty? (vreset! txes (tx-range conn (inc @top-tx))))
+           (when (empty? (vreset! txes (tx-range conn (inc @top-read-tx))))
              (LockSupport/parkNanos (* batch-timeout 1000000))))
          nil)))))
 
