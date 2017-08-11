@@ -1,13 +1,13 @@
 ## onyx-datomic
 
-Onyx plugin providing read and write facilities for batch processing a Datomic database.
+Onyx plugin providing read and write facilities for batch and stream processing on a Datomic database.
 
 #### Installation
 
 In your project file:
 
 ```clojure
-[org.onyxplatform/onyx-datomic "0.10.0.0"]
+[org.onyxplatform/onyx-datomic "0.10.0.1"]
 ```
 
 In your peer boot-up namespace:
