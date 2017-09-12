@@ -13,7 +13,7 @@
                              :sign-releases false}}
   :dependencies [[org.clojure/clojure "1.8.0"]
                  ^{:voom {:repo "git@github.com:onyx-platform/onyx.git" :branch "master"}}
-                 [org.onyxplatform/onyx "0.10.1-20170910_214331-g51287f6"]]
+                 [org.onyxplatform/onyx "0.10.1-20170912_064734-g48e364c"]]
   :test-selectors {:default (complement :ci)
                    :ci :ci
                    :all (constantly true)}
