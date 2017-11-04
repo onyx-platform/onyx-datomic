@@ -279,15 +279,14 @@
   (prepare-batch [this event replica _]
     true)
 
-  (write-batch [this {:keys [onyx.core/results]} replica _]
-    (let [segments (mapcat :leaves (:tree results))]
-      @(d/transact conn
-                   (map (fn [segment] 
-                          (if (and partition (not (sequential? segment)))
-                            (assoc segment :db/id (d/tempid partition))
-                            segment)) 
-                        segments))
-      true)))
+  (write-batch [this {:keys [onyx.core/write-batch]} replica _]
+    @(d/transact conn
+                 (map (fn [segment] 
+                        (if (and partition (not (sequential? segment)))
+                          (assoc segment :db/id (d/tempid partition))
+                          segment)) 
+                      write-batch))
+    true))
 
 (defn write-datoms [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
@@ -323,10 +322,10 @@
   (prepare-batch [this event replica _]
     true)
 
-  (write-batch [this {:keys [onyx.core/results]} replica _]
+  (write-batch [this {:keys [onyx.core/write-batch]} replica _]
     (run! (fn [segment]
             @(d/transact conn (:tx segment)))
-          (mapcat :leaves (:tree results)))
+          write-batch)
     true))
 
 (defn write-bulk-datoms [pipeline-data]
@@ -360,12 +359,10 @@
   (prepare-batch [this event replica _]
     true)
 
-  (write-batch [this {:keys [onyx.core/results]} replica _]
-    (let [xf (comp (mapcat :leaves)
-                   (map (fn [tx] (d/transact-async conn (:tx tx)))))] 
-      (->> (sequence xf (:tree results))
-           (doall)
-           (run! deref)))
+  (write-batch [this {:keys [onyx.core/write-batch]} replica _]
+    (->> write-batch
+         (map (fn [tx] (d/transact-async conn (:tx tx))))
+         (run! deref))
     true))
 
 (defn write-bulk-datoms-async [pipeline-data]
