@@ -21,8 +21,8 @@
   :onyx.messaging/impl                   :aeron
   :onyx.messaging/bind-addr              #env [BIND_ADDR "localhost"]
   :onyx.messaging/peer-port              40200
+  :onyx.peer/storage.zk.insanely-allow-windowing? true
   :onyx.messaging.aeron/embedded-driver? #cond {:default false
-                                                :test true}
-  :onyx.messaging/backpressure-strategy :high-restart-latency}
+                                                :test true}}
  :datomic-config
  {:datomic/uri "datomic:free://localhost:4334/"}}
