@@ -364,11 +364,17 @@ Injects a datomic db into the event map. Will also inject as an :onyx/fn param i
 #### Development
 ##### Run tests against Datomic Cloud
 1. [Set up Datomic Cloud](https://docs.datomic.com/cloud/setting-up.html). 
-2. [Allow inbound bastion traffic](https://docs.datomic.com/cloud/getting-started/configuring-access.html#authorize-bastion).
-3. [Start a socks proxy](https://docs.datomic.com/cloud/getting-started/connecting.html#socks-proxy).
-4. Update `com.datomic/client-cloud` version in `project.clj` if necessary.
-5. Run tests compatible with Datomic cloud. 
-
+1. [Allow inbound bastion traffic](https://docs.datomic.com/cloud/getting-started/configuring-access.html#authorize-bastion).
+1. [Start a socks proxy](https://docs.datomic.com/cloud/getting-started/connecting.html#socks-proxy).
+1. Update `com.datomic/client-cloud` version in `project.clj` if necessary.
+1. Define the following environment variables. 
+```
+export DATOMIC_CLOUD_SYSTEM=<system name>
+export DATOMIC_CLOUD_REGION=<aws region>
+export DATOMIC_CLOUD_PROXY_PORT=8182
+export DATOMIC_CLOUD_QUERY_GROUP=<system name>
+```
+1. Run tests compatible with Datomic cloud. 
 ```
 lein with-profile cloud test :cloud
 ```
