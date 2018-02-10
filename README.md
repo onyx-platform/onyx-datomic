@@ -9,12 +9,78 @@ In your project file:
 ```clojure
 [org.onyxplatform/onyx-datomic "0.12.6.1-SNAPSHOT"]
 ```
-
 In your peer boot-up namespace:
 
 ```clojure
 (:require [onyx.plugin.datomic])
 ```
+
+#### Datomic editions
+Datomic Cloud edition was added in Jan. 2018 and the original Datomic 
+was re-branded as Datomic On-Prem. 
+
+Datomic On-Prem can be accessed via Peer API and Client API, while Datomic Cloud is 
+accessible only via Client API. 
+
+This plugin supports Datomic Peer API for Datomic On-Prem and Client API for Datomic Cloud. 
+Client API is almost identical between On-Prem and Cloud other than connection mechanism, but 
+some functions such as `create-database` is not supported for On-Prem. In addition to that, 
+client API is not supported in Datomic On-Prem Free edition so it is not testable without a license and setting up of 
+external transactor and peer-server. 
+
+For those reasons, client API is tested only against Datomic Cloud.
+Basic manual tests showed positive results on accessing to Datomic On-Prem Pro edition via Client API, but it is not 
+continuously tested and may be broken. 
+
+#### Define Datomic dependency
+
+The behavior is dynamically determined by looking up a datomic lib in classpath. 
+Add one of peer, client, or cloud library in the classpath. Including multiple libs is not supported.
+
+##### Peer lib 
+Add `com.datomic/datomic-free` or `com.datomic/datomic-pro`. 
+Note that the registration to [My Datomic](https://my.datomic.com/login) is required to 
+download Datomic Pro. The credential and repository needs to be set up in your project. 
+See [My Account](https://my.datomic.com/account) page for the details. 
+
+```clojure
+[com.datomic/datomic-free "0.9.5544"]
+```
+##### Client lib for Datomic On-Prem
+Add `com.datomic/client-pro` to your dependencies. 
+See [Project Configuration](https://docs.datomic.com/on-prem/project-setup.html#project-configuration)
+for the details.
+
+###### Client lib for Datomic Cloud
+Follow the instruction in [Datomic Cloud documentation](https://docs.datomic.com/cloud/getting-started/connecting.html#add-dependency) 
+and add `com.datomic/client-cloud` to your project.
+
+#### Attributes for Datomic Cloud Client API
+Specify the following attributes to task map to connect Datomic Cloud. 
+
+| key                          | type      | description
+|------------------------------|-----------|------------
+|`:datomic-cloud/region`       | `string`  | AWS region id where Datomic Cloud runs. e.g. `us-east-1`.
+|`:datomic-cloud/system`       | `string`  | System name chosen on setting up Datomic Cloud.
+|`:datomic-cloud/query-group`  | `string`  | Query group name if it is set up. Specify system name otherwise.
+|`:datomic-cloud/endpoint`     | `string`  | Optional. The default is `http://entry.<system-name>.<region>.datomic.net:8182/`
+|`:datomic-cloud/proxy-port`   | `string`  | Optional. Local port number for SSH tunnel to bastion. Default is 8182.
+|`:datomic-cloud/db-name`      | `string`  | Database name.
+
+`:datomic/uri` is ignored. 
+
+#### Attributes for Datomic On-Prem Client API 
+Specify the following attributes to task map to connect Datomic On-Prem via Client API. Note that it is not tested
+due to the license and functional limitations described above.
+
+| key                          | type      | description
+|------------------------------|-----------|------------
+|`:datomic-client/access-key`  | `string`  | Access key specified in Peer-server command line options.
+|`:datomic-client/secret`      | `string`  | Secret specified in Peer-server command line options.
+|`:datomic-client/endpoint`    | `string`  | `hostname:port-number` of Peer-server.
+|`:datomic-client/db-name`     | `string`  | Database name.
+
+`:datomic/uri` is ignored. 
 
 #### Functions
 
@@ -295,6 +361,18 @@ Injects a datomic db into the event map. Will also inject as an :onyx/fn param i
  :onyx/param? true
  :lifecycle/doc "Initialises datomic db as a :onyx.core/param"}
 ```
+#### Development
+##### Run tests against Datomic Cloud
+1. [Set up Datomic Cloud](https://docs.datomic.com/cloud/setting-up.html). 
+2. [Allow inbound bastion traffic](https://docs.datomic.com/cloud/getting-started/configuring-access.html#authorize-bastion).
+3. [Start a socks proxy](https://docs.datomic.com/cloud/getting-started/connecting.html#socks-proxy).
+4. Update `com.datomic/client-cloud` version in `project.clj` if necessary.
+5. Run tests compatible with Datomic cloud. 
+
+```
+lein with-profile cloud test :cloud
+```
+
 
 #### Contributing
 
