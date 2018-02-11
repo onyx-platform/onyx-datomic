@@ -3,7 +3,13 @@
             [onyx.schema :as os]))
 
 (def DatomicReadLogTaskMap
-  {:datomic/uri s/Str 
+  {(s/optional-key :datomic/uri) s/Str
+   (s/optional-key :datomic-cloud/system) s/Str
+   (s/optional-key :datomic-cloud/region) s/Str
+   (s/optional-key :datomic-cloud/query-group) s/Str
+   (s/optional-key :datomic-cloud/endpoint) s/Str
+   (s/optional-key :datomic-cloud/proxy-port) s/Int
+   (s/optional-key :datomic-cloud/db-name) s/Str
    (s/optional-key :datomic/log-start-tx) s/Int
    (s/optional-key :datomic/log-end-tx) s/Int
    (s/optional-key :onyx/max-peers) (s/enum 1)
@@ -27,7 +33,13 @@
                               task-opts))))
 
 (def DatomicReadDatomsTaskMap
-  {:datomic/uri s/Str
+  {(s/optional-key :datomic/uri) s/Str
+   (s/optional-key :datomic-cloud/system) s/Str
+   (s/optional-key :datomic-cloud/region) s/Str
+   (s/optional-key :datomic-cloud/query-group) s/Str
+   (s/optional-key :datomic-cloud/endpoint) s/Str
+   (s/optional-key :datomic-cloud/proxy-port) s/Int
+   (s/optional-key :datomic-cloud/db-name) s/Str
    :datomic/t s/Int
    :datomic/datoms-index s/Keyword
    :datomic/datoms-per-segment s/Int

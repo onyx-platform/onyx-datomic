@@ -25,4 +25,13 @@
   :onyx.messaging.aeron/embedded-driver? #cond {:default false
                                                 :test true}}
  :datomic-config
- {:datomic/uri "datomic:free://localhost:4334/"}}
+ {:datomic/uri #cond {:default "datomic:free://localhost:4334/"
+                      :peer "datomic:mem://"}
+  :datomic-cloud/system #cond {:peer "N/A"
+                               :cloud #env [DATOMIC_CLOUD_SYSTEM]} 
+  :datomic-cloud/region #cond {:peer "N/A"
+                               :cloud #env [DATOMIC_CLOUD_REGION]} 
+  :datomic-cloud/query-group #cond {:peer "N/A"
+                                    :cloud #env [DATOMIC_CLOUD_QUERY_GROUP]} 
+  :datomic-cloud/proxy-port #cond {:peer 8182
+                                   :cloud #env [DATOMIC_CLOUD_PROXY_PORT]}}}
