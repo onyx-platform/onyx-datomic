@@ -3,8 +3,8 @@ executorType: docker
 jobs:
   build:
     docker:
-      - image: akiel/datomic-free
       - image: circleci/clojure:lein-2.8.1
+      - image: akiel/datomic-free
     working_directory: ~/repo
     steps:
       - checkout
