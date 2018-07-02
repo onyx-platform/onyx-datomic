@@ -20,10 +20,6 @@ jobs:
           name: lein voom build deps
           command: lein voom build-deps
 
-      - run:
-          name: start datomic
-          command: ./start_datomic.sh
-
       - run: 
           name: test
           command: lein test
