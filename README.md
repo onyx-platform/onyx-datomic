@@ -7,7 +7,7 @@ Onyx plugin providing read and write facilities for batch and stream processing 
 In your project file:
 
 ```clojure
-[org.onyxplatform/onyx-datomic "0.14.0.1-SNAPSHOT"]
+[org.onyxplatform/onyx-datomic "0.14.1.0"]
 ```
 In your peer boot-up namespace:
 

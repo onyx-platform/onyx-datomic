@@ -1,4 +1,4 @@
-(defproject org.onyxplatform/onyx-datomic "0.14.0.1-SNAPSHOT"
+(defproject org.onyxplatform/onyx-datomic "0.14.1.0"
   :description "Onyx plugin for Datomic"
   :url "https://github.com/onyx-platform/onyx-datomic"
   :license {:name "Eclipse Public License"
@@ -13,7 +13,7 @@
                                      :sign-releases false}}
   :dependencies [[org.clojure/clojure "1.9.0"]
                  ^{:voom {:repo "git@github.com:onyx-platform/onyx.git" :branch "master"}}
-                 [org.onyxplatform/onyx "0.14.0"]]
+                 [org.onyxplatform/onyx "0.14.1"]]
   :test-selectors {:default (complement :ci)
                    :ci :ci
                    :cloud :cloud
