@@ -9,7 +9,7 @@
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
             [onyx.schema :as os]
-            [taoensso.timbre :refer [info debug fatal]]))
+            [taoensso.timbre :refer [info debug warn error fatal]]))
 
 ;;; Helpers
 
@@ -449,6 +449,27 @@
   [{:keys [onyx.core/pipeline]} lifecycle]
   {:datomic/conn (:conn pipeline)})
 
+(defn get-exception-cause
+  [ex]
+  (when (instance? Throwable ex)
+    (or (ex-data ex) (ex-data (.getCause ex)))))
+
+(def restartable-exceptions
+  #{:db.error/transaction-timeout
+    :db.error/transactor-unavailable})
+
+(defn try-deref
+  "Wrap deref to catch exceptions that we want to catch and reboot the task"
+  [pending-tx]
+  (try
+    (deref pending-tx)
+    (catch Exception ex
+      (let [cause (get-exception-cause ex)]
+        (if (restartable-exceptions cause) 
+          ::restartable-ex
+          (throw (ex-info "Unrecoverable transaction exception. Not Rebooting task."
+                          {:cause cause})))))))
+
 (defrecord DatomicWriteDatoms [conn partition]
   p-ext/Pipeline
   (read-batch
@@ -458,18 +479,16 @@
   (write-batch
       [_ event]
       (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))
-            timeout-ms 15000 
             written (-> conn
                         (d/transact (map (fn [msg] (if (and partition (not (sequential? msg)))
                                                      (assoc msg :db/id (d/tempid partition))
                                                      msg))
                                          (map :message messages)))
-                        (deref timeout-ms ::timed-out))]
-        (when (= ::timed-out written)
+                        try-deref)]
+        (when (= ::restartable-ex written)
           (throw (ex-info "Timed out transacting message to datomic. Rebooting task" 
                           {:restartable? true
-                           :datomic-plugin? true
-                           :timeout timeout-ms})))
+                           :datomic-plugin? true})))
       {:datomic/written written
        :datomic/written? true}))
 
@@ -492,18 +511,16 @@
   (write-batch
       [_ event]
 
-      (let [timeout-ms 15000
-            written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+      (let [written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
                          (map (fn [tx]
                                 (d/transact conn (:tx (:message tx)))))
                          (doall)
-                         (map #(deref % timeout-ms ::timed-out))
+                         (map try-deref)
                          (doall))]
-        (when (some #(= ::timed-out written) written)
+        (when (some #(= ::restartable-ex written) written)
           (throw (ex-info "Timed out transacting message to datomic. Rebooting task" 
                           {:restartable? true
-                           :datomic-plugin? true
-                           :timeout timeout-ms})))
+                           :datomic-plugin? true})))
         {;; Transact each tx individually to avoid tempid conflicts.
          :datomic/written written
          :datomic/written? true}))
@@ -525,18 +542,16 @@
 
   (write-batch
       [_ event]
-      (let [timeout-ms 15000
-            written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+      (let [written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
                          (map (fn [tx]
                                 (d/transact-async conn (:tx (:message tx)))))
                          (doall)
-                         (map #(deref % timeout-ms ::timed-out))
+                         (map try-deref)
                          (doall))]
-        (when (some #(= ::timed-out written) written)
+        (when (some #(= ::restartable-ex written) written)
           (throw (ex-info "Timed out writing async message to datomic. Rebooting task" 
                           {:restartable? true
-                           :datomic-plugin? true
-                           :timeout timeout-ms})))
+                           :datomic-plugin? true})))
         {;; Transact each tx individually to avoid tempid conflicts.
          :datomic/written written
          :datomic/written? true}))
