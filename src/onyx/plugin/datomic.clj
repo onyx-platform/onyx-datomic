@@ -9,7 +9,7 @@
             [onyx.static.uuid :refer [random-uuid]]
             [onyx.extensions :as extensions]
             [onyx.schema :as os]
-            [taoensso.timbre :refer [info debug fatal]]))
+            [taoensso.timbre :refer [info debug warn error fatal]]))
 
 ;;; Helpers
 
@@ -150,7 +150,7 @@
                          read-ch retry-ch commit-ch]
   p-ext/Pipeline
   (write-batch
-      [this event]
+    [this event]
     (function/write-batch event))
 
   (read-batch
@@ -449,6 +449,27 @@
   [{:keys [onyx.core/pipeline]} lifecycle]
   {:datomic/conn (:conn pipeline)})
 
+(defn get-exception-cause
+  [ex]
+  (when (instance? Throwable ex)
+    (or (ex-data ex) (ex-data (.getCause ex)))))
+
+(def restartable-exceptions
+  #{:db.error/transaction-timeout
+    :db.error/transactor-unavailable})
+
+(defn try-deref
+  "Wrap deref to catch exceptions that we want to catch and reboot the task"
+  [pending-tx]
+  (try
+    (deref pending-tx)
+    (catch Exception ex
+      (let [cause (get-exception-cause ex)]
+        (if (restartable-exceptions cause) 
+          ::restartable-ex
+          (throw (ex-info "Unrecoverable transaction exception. Not Rebooting task."
+                          {:cause cause})))))))
+
 (defrecord DatomicWriteDatoms [conn partition]
   p-ext/Pipeline
   (read-batch
@@ -457,12 +478,18 @@
 
   (write-batch
       [_ event]
-    (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))]
-      {:datomic/written @(d/transact conn
-                                     (map (fn [msg] (if (and partition (not (sequential? msg)))
-                                                      (assoc msg :db/id (d/tempid partition))
-                                                      msg))
-                                          (map :message messages)))
+      (let [messages (mapcat :leaves (:tree (:onyx.core/results event)))
+            written (-> conn
+                        (d/transact (map (fn [msg] (if (and partition (not (sequential? msg)))
+                                                     (assoc msg :db/id (d/tempid partition))
+                                                     msg))
+                                         (map :message messages)))
+                        try-deref)]
+        (when (= ::restartable-ex written)
+          (throw (ex-info "Timed out transacting message to datomic. Rebooting task" 
+                          {:restartable? true
+                           :datomic-plugin? true})))
+      {:datomic/written written
        :datomic/written? true}))
 
   (seal-resource
@@ -483,11 +510,20 @@
 
   (write-batch
       [_ event]
-    {;; Transact each tx individually to avoid tempid conflicts.
-     :datomic/written (mapv (fn [tx]
-                              @(d/transact conn (:tx (:message tx))))
-                            (mapcat :leaves (:tree (:onyx.core/results event))))
-     :datomic/written? true})
+
+      (let [written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+                         (map (fn [tx]
+                                (d/transact conn (:tx (:message tx)))))
+                         (doall)
+                         (map try-deref)
+                         (doall))]
+        (when (some #(= ::restartable-ex written) written)
+          (throw (ex-info "Timed out transacting message to datomic. Rebooting task" 
+                          {:restartable? true
+                           :datomic-plugin? true})))
+        {;; Transact each tx individually to avoid tempid conflicts.
+         :datomic/written written
+         :datomic/written? true}))
 
   (seal-resource
       [_ _]
@@ -501,21 +537,34 @@
 (defrecord DatomicWriteBulkDatomsAsync [conn]
   p-ext/Pipeline
   (read-batch
-      [_ event]
+    [_ event]
     (function/read-batch event))
 
   (write-batch
       [_ event]
-    {;; Transact each tx individually to avoid tempid conflicts.
-     :datomic/written (->> (mapv (fn [tx]
-                                   (d/transact-async conn (:tx (:message tx))))
-                                 (mapcat :leaves (:tree (:onyx.core/results event))))
-                           (into [] (comp (map deref))))
-     :datomic/written? true})
+      (let [written (->> (mapcat :leaves (:tree (:onyx.core/results event)))
+                         (map (fn [tx]
+                                (d/transact-async conn (:tx (:message tx)))))
+                         (doall)
+                         (map try-deref)
+                         (doall))]
+        (when (some #(= ::restartable-ex written) written)
+          (throw (ex-info "Timed out writing async message to datomic. Rebooting task" 
+                          {:restartable? true
+                           :datomic-plugin? true})))
+        {;; Transact each tx individually to avoid tempid conflicts.
+         :datomic/written written
+         :datomic/written? true}))
 
   (seal-resource
       [_ _]
     {}))
+
+(defn handle-timed-out-exception [event lifecycle lf-kw exception]
+  (if (and (:datomic-plugin? (ex-data exception))
+           (:restartable? (ex-data exception)))
+    :restartable
+    :kill))
 
 (defn write-bulk-datoms-async [pipeline-data]
   (let [task-map (:onyx.core/task-map pipeline-data)
@@ -534,10 +583,12 @@
   {:lifecycle/before-task-start inject-write-tx-resources})
 
 (def write-bulk-tx-calls
-  {:lifecycle/before-task-start inject-write-bulk-tx-resources})
+  {:lifecycle/before-task-start inject-write-bulk-tx-resources
+   :lifecycle/handle-exception handle-timed-out-exception})
 
 (def write-bulk-tx-async-calls
-  {:lifecycle/before-task-start inject-write-bulk-tx-async-resources})
+  {:lifecycle/before-task-start inject-write-bulk-tx-async-resources
+   :lifecycle/handle-exception handle-timed-out-exception})
 
 ;;;;;;;;;
 ;;; params lifecycles
