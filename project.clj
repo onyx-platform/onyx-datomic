@@ -1,4 +1,4 @@
-(defproject org.onyxplatform/onyx-datomic "0.14.5.0"
+(defproject org.onyxplatform/onyx-datomic "0.14.5.1"
   :description "Onyx plugin for Datomic"
   :url "https://github.com/onyx-platform/onyx-datomic"
   :license {:name "Eclipse Public License"
@@ -18,7 +18,7 @@
                    :ci :ci
                    :cloud :cloud
                    :all (constantly true)}
-  
+
   :profiles {:dev {:dependencies [[aero "0.2.0"]
                                   [com.fzakaria/slf4j-timbre "0.3.8"]
                                   [org.slf4j/slf4j-api "1.7.14"]

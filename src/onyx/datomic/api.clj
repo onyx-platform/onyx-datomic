@@ -8,11 +8,11 @@
      (catch FileNotFoundException _ (require '[datomic.api :as d])))
 
 (defn- _datomic-lib-type []
-  (if (find-ns 'datomic.client.api)
+  (if (find-ns 'datomic.api)
+    :peer
     (try (require '[datomic.client.impl.cloud])
          :cloud
-         (catch FileNotFoundException _ :client))
-    :peer))
+         (catch FileNotFoundException _ :client))))
 
 (def datomic-lib-type (memoize _datomic-lib-type))
 

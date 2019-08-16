@@ -1,3 +1,6 @@
+#### 0.14.5.1
+* Updated `onyx.datomic.api` NS discovery to pick correct Datomic driver against modern datomic-pro releases
+
 #### 0.10.0.1
 * Fix bug in read-log recovery, where start tx would jump forward by 1 on recovery.
 
@@ -30,4 +33,3 @@
 #### 0.7.0.1
 * New index-range catalog type
 * read-datoms can now supply components to datoms via :datomic/datoms-components
-
