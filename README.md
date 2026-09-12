@@ -201,7 +201,7 @@ Task will emit a sentinel `:done` when it reaches the tx log-end-tx
 
 Segments will be read in the form `{:t tx-id :data [[e a v t added] [e a v t added]]}`.
 
-To recover read-log offsets in a new job, please use the onyx [resume points feature](http://www.onyxplatform.org/docs/user-guide/0.10.x/#resume-point).
+To recover read-log offsets in a new job, please use the onyx [resume points feature](https://onyx-platform.github.io/docs/user-guide/0.10.x/#resume-point).
 
 ###### Attributes
 

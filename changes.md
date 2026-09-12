@@ -5,7 +5,7 @@
 * Fix bug in read-log recovery, where start tx would jump forward by 1 on recovery.
 
 #### 0.10.0.0
-* `:checkpoint/force-reset?` and `:checkpoint/key` are both deprecated in favour of 0.10.0's [resume-points](http://www.onyxplatform.org/docs/user-guide/0.10.0-beta4/#resume-point) feature.
+* `:checkpoint/force-reset?` and `:checkpoint/key` are both deprecated in favour of 0.10.0's [resume-points](https://onyx-platform.github.io/docs/user-guide/0.10.0-beta4/#resume-point) feature.
 
 #### 0.9.7.0
 * Defensively reduce chances of deadlock.
